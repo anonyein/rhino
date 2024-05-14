@@ -73,6 +73,8 @@ public class TopLevel extends IdScriptableObject {
         SyntaxError,
         /** The native TypeError. */
         TypeError,
+        /** The native NetworkError. */
+        NetworkError,
         /** The native URIError. */
         URIError,
         /** The native InternalError (non-standard). */

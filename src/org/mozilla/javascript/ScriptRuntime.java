@@ -4734,6 +4734,10 @@ public class ScriptRuntime {
         return rangeError(msg);
     }
 
+    public static EcmaError networkError(String message) {
+        return constructError("NetworkError", message);
+    }
+
     public static EcmaError typeError(String message) {
         return constructError("TypeError", message);
     }
