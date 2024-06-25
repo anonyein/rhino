@@ -6,10 +6,8 @@ package org.mozilla.javascript.tests.es6;
 
 import static org.junit.Assert.assertEquals;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.tests.Utils;
 
@@ -18,16 +16,7 @@ public class NumericSeparatorTest {
     /** Special Tokenizer test for numeric constant at end. */
     @Test
     public void numericAtEndOneDigit() {
-        Utils.runWithAllOptimizationLevels(
-                cx -> {
-                    cx.setLanguageVersion(Context.VERSION_ES6);
-                    ScriptableObject scope = cx.initStandardObjects();
-
-                    Object result = cx.evaluateString(scope, "1", "test", 1, null);
-                    assertEquals(1.0, result);
-
-                    return null;
-                });
+        Utils.assertWithAllOptimizationLevelsES6(1.0, "1");
     }
 
     /** Special Tokenizer test for numeric constant at end. */
@@ -74,19 +63,6 @@ public class NumericSeparatorTest {
     /** Special Tokenizer test for numeric separator constant at end. */
     @Test
     public void numericSeparatorAtEnd() {
-        Utils.runWithAllOptimizationLevels(
-                cx -> {
-                    cx.setLanguageVersion(Context.VERSION_ES6);
-                    ScriptableObject scope = cx.initStandardObjects();
-
-                    try {
-                        cx.evaluateString(scope, "1_", "test", 1, null);
-                        Assert.fail("EvaluatorException expected");
-                    } catch (EvaluatorException e) {
-                        // expected
-                    }
-
-                    return null;
-                });
+        Utils.assertEvaluatorExceptionES6("number format error (test#1)", "1_");
     }
 }

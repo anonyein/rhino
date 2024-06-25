@@ -157,7 +157,7 @@ public class Test262SuiteTest {
     private static String getOverriddenLevel() {
         String optLevel = System.getProperty("TEST_OPTLEVEL");
 
-        if (optLevel == null || optLevel.equals("")) {
+        if (optLevel == null || optLevel.isEmpty()) {
             optLevel = System.getenv("TEST_262_OPTLEVEL");
         }
         return optLevel;
@@ -195,7 +195,7 @@ public class Test262SuiteTest {
             try {
                 Path previousReportingDir = null;
                 Path currentReportingDir;
-                List<String> failures = new ArrayList<String>();
+                List<String> failures = new ArrayList<>();
                 int testCount = 0;
                 Path previousTestFileParentPath =
                         testDir.toPath(); // tracks the current directory for which files are
@@ -251,7 +251,7 @@ public class Test262SuiteTest {
                         // in
                         // the
                         // previous directory failed
-                        // If so, dont list all failing files, but list only the folder path
+                        // If so, don't list all failing files, but list only the folder path
                         if (rollUpEnabled
                                 && (!testFilePath.startsWith(previousTestFileParentPath)
                                         || !testFilePath
