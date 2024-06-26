@@ -1224,6 +1224,16 @@ public class Parser {
                 return withStatement();
 
             case Token.CONST:
+                // HtmlUnit - HACK
+                // allow const by treating them as let
+                // see JavaScriptEngine2Test.constInIfElse()
+                //
+                // HtmlUnit - HACK
+                currentToken = Token.LET;
+                pn = letStatement();
+                if (pn instanceof VariableDeclaration && peekToken() == Token.SEMI) break;
+                return pn;
+                // HtmlUnit - HACK
             case Token.VAR:
                 consumeToken();
                 int lineno = ts.lineno;
