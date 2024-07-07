@@ -30,8 +30,7 @@ jobs:
         distribution: 'adopt'
     - name: Check everything with Gradle
       run: |
-        ./gradlew shadowJar
-        java -jar rhino/build/libs/rhino-1.7.16-SNAPSHOT.jar
+        ./gradlew check
     - name: Upload results
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
