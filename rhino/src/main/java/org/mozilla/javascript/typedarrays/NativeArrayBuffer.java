@@ -41,6 +41,11 @@ public class NativeArrayBuffer extends IdScriptableObject {
         buffer = EMPTY_BUF;
     }
 
+    /** Create a buffer of the specified bytes. */
+    public NativeArrayBuffer(byte[] buffer) {
+        this.buffer = buffer;
+    }
+
     /** Create a buffer of the specified length in bytes. */
     public NativeArrayBuffer(double len) {
         if (len >= Integer.MAX_VALUE) {
