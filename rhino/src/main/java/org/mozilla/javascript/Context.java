@@ -2557,7 +2557,7 @@ public class Context implements Closeable {
             }
         }
 
-        IRFactory irf = new IRFactory(compilerEnv, compilationErrorReporter);
+        IRFactory irf = new IRFactory(compilerEnv, sourceString, compilationErrorReporter);
         //HtmlUnit ScriptNode tree = irf.transformTree(ast);
         ScriptNode tree = irf.transformTree(ast, sourceString);
         return tree;
