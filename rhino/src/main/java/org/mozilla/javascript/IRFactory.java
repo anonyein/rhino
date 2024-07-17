@@ -18,6 +18,7 @@ import org.mozilla.javascript.ast.BigIntLiteral;
 import org.mozilla.javascript.ast.Block;
 import org.mozilla.javascript.ast.BreakStatement;
 import org.mozilla.javascript.ast.CatchClause;
+import org.mozilla.javascript.ast.ComputedPropertyKey;
 import org.mozilla.javascript.ast.ConditionalExpression;
 import org.mozilla.javascript.ast.ContinueStatement;
 import org.mozilla.javascript.ast.DestructuringForm;
@@ -238,6 +239,9 @@ public final class IRFactory {
                 }
                 if (node instanceof ParenthesizedExpression) {
                     return transformParenExpr((ParenthesizedExpression) node);
+                }
+                if (node instanceof ComputedPropertyKey) {
+                    return transformComputedPropertyKey((ComputedPropertyKey) node);
                 }
                 if (node instanceof LabeledStatement) {
                     return transformLabeledStatement((LabeledStatement) node);
@@ -972,11 +976,14 @@ public final class IRFactory {
         List<ObjectProperty> elems = node.getElements();
         Node object = new Node(Token.OBJECTLIT);
         Object[] properties;
+        Object[] computedProperties;
         if (elems.isEmpty()) {
             properties = ScriptRuntime.emptyArgs;
+            computedProperties = ScriptRuntime.emptyArgs;
         } else {
             int size = elems.size(), i = 0;
             properties = new Object[size];
+            computedProperties = new Object[size];
             for (ObjectProperty prop : elems) {
                 //HtmlUnit if (prop.isGetterMethod()) {
                 //HtmlUnit     decompiler.addToken(Token.GET);
@@ -986,7 +993,13 @@ public final class IRFactory {
                 //HtmlUnit     decompiler.addToken(Token.METHOD);
                 //HtmlUnit }
 
-                properties[i++] = getPropKey(prop.getLeft());
+                Object propKey = getPropKey(prop.getLeft());
+                if (propKey == null) {
+                    Node theId = transform(prop.getLeft());
+                    computedProperties[i++] = theId;
+                } else {
+                    properties[i++] = propKey;
+                }
 
                 // OBJECTLIT is used as ':' in object literal for
                 // decompilation to solve spacing ambiguity.
@@ -1011,6 +1024,7 @@ public final class IRFactory {
         }
         //HtmlUnit decompiler.addToken(Token.RC);
         object.putProp(Node.OBJECT_IDS_PROP, properties);
+        object.putProp(Node.OBJECT_IDS_COMPUTED_PROP, computedProperties);
         return object;
     }
 
@@ -1029,7 +1043,7 @@ public final class IRFactory {
             //HtmlUnit decompiler.addNumber(n);
             key = ScriptRuntime.getIndexObject(n);
         } else {
-            throw Kit.codeBug();
+            key = null; // Filled later
         }
         return key;
     }
@@ -1049,6 +1063,13 @@ public final class IRFactory {
         //HtmlUnit }
         result.putProp(Node.PARENTHESIZED_PROP, Boolean.TRUE);
         return result;
+    }
+
+    private Node transformComputedPropertyKey(ComputedPropertyKey node) {
+        //HtmlUnit decompiler.addToken(Token.LB);
+        Node transformedExpression = transform(node.getExpression());
+        //HtmlUnit decompiler.addToken(Token.RB);
+        return new Node(node.type, transformedExpression);
     }
 
     private Node transformPropertyGet(PropertyGet node) {
@@ -2511,6 +2532,9 @@ public final class IRFactory {
                 break;
             case Token.THIS:
                 //HtmlUnit decompiler.addToken(node.getType());
+                break;
+            case Token.COMPUTED_PROPERTY:
+                parser.reportError("msg.bad.computed.property.in.destruct");
                 break;
             default:
                 Kit.codeBug("unexpected token: " + Token.typeToName(node.getType()));

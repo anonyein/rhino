@@ -25,6 +25,7 @@ import org.mozilla.javascript.ast.Block;
 import org.mozilla.javascript.ast.BreakStatement;
 import org.mozilla.javascript.ast.CatchClause;
 import org.mozilla.javascript.ast.Comment;
+import org.mozilla.javascript.ast.ComputedPropertyKey;
 import org.mozilla.javascript.ast.ConditionalExpression;
 import org.mozilla.javascript.ast.ContinueStatement;
 import org.mozilla.javascript.ast.DestructuringForm;
@@ -3596,7 +3597,9 @@ public class Parser {
                 }
             }
 
-            if (this.inUseStrictDirective && propertyName != null) {
+            if (this.inUseStrictDirective
+                    && propertyName != null
+                    && !(pname instanceof ComputedPropertyKey)) {
                 switch (entryKind) {
                     case PROP_ENTRY:
                     case METHOD_ENTRY:
@@ -3657,6 +3660,26 @@ public class Parser {
             case Token.NUMBER:
             case Token.BIGINT:
                 pname = createNumericLiteral(tt, true);
+                break;
+
+            case Token.LB:
+                if (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
+                    int pos = ts.tokenBeg;
+                    int lineno = ts.lineno;
+                    nextToken();
+                    AstNode expr = assignExpr();
+                    if (peekToken() != Token.RB) {
+                        reportError("msg.bad.prop");
+                    }
+                    nextToken();
+
+                    pname = new ComputedPropertyKey(pos, ts.tokenEnd - pos);
+                    pname.setLineno(lineno);
+                    ((ComputedPropertyKey) pname).setExpression(expr);
+                } else {
+                    reportError("msg.bad.prop");
+                    return null;
+                }
                 break;
 
             default:
@@ -4152,6 +4175,9 @@ public class Parser {
             } else if (id instanceof NumberLiteral) {
                 Node s = createNumber((int) ((NumberLiteral) id).getNumber());
                 rightElem = new Node(Token.GETELEM, createName(tempName), s);
+            } else if (id instanceof ComputedPropertyKey) {
+                reportError("msg.bad.computed.property.in.destruct");
+                return false;
             } else {
                 throw codeBug();
             }

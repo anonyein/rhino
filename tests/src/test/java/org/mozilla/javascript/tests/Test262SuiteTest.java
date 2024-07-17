@@ -96,7 +96,6 @@ public class Test262SuiteTest {
                             "class",
                             "class-fields-private",
                             "class-fields-public",
-                            "computed-property-names",
                             "default-arg",
                             "default-parameters",
                             "new.target",
