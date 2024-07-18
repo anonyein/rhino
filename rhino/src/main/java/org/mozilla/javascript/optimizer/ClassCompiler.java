@@ -112,8 +112,12 @@ public class ClassCompiler {
         Parser p = new Parser(compilerEnv);
         AstRoot ast = p.parse(source, sourceLocation, lineno);
         IRFactory irf = new IRFactory(compilerEnv, source);
-        //HtmlUnit ScriptNode tree = irf.transformTree(ast);
-        ScriptNode tree = irf.transformTree(ast, source);
+        ScriptNode tree = irf.transformTree(ast);
+
+        if (compilerEnv.isGeneratingSource()) {
+            tree.setRawSource(source);
+            tree.setRawSourceBounds(0, source.length());
+        }
 
         // release reference to original parse tree & parser
         irf = null;
@@ -133,8 +137,7 @@ public class ClassCompiler {
         Codegen codegen = new Codegen();
         codegen.setMainMethodClass(mainMethodClassName);
         byte[] scriptClassBytes =
-                codegen.compileToClassFile(
-                        compilerEnv, scriptClassName, tree, tree.getEncodedSource(), false);
+                codegen.compileToClassFile(compilerEnv, scriptClassName, tree, source, false);
 
         if (isPrimary) {
             return new Object[] {scriptClassName, scriptClassBytes};

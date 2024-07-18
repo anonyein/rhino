@@ -8,8 +8,9 @@
 
 package org.mozilla.javascript;
 
-public class IdFunctionObject extends BaseFunction {
+import java.util.EnumSet;
 
+public class IdFunctionObject extends BaseFunction {
     private static final long serialVersionUID = -5332312783643935019L;
 
     public IdFunctionObject(IdFunctionCall idcall, Object tag, int id, int arity) {
@@ -97,8 +98,29 @@ public class IdFunctionObject extends BaseFunction {
     }
 
     @Override
-    public int getArity()
-    {
+    String decompile(int indent, EnumSet<DecompilerFlag> flags) {
+        StringBuilder sb = new StringBuilder();
+        boolean justbody = flags.contains(DecompilerFlag.ONLY_BODY);
+        if (!justbody) {
+            sb.append("function ");
+            sb.append(getFunctionName());
+            sb.append("() { ");
+        }
+        sb.append("[native code for ");
+        if (idcall instanceof Scriptable) {
+            Scriptable sobj = (Scriptable) idcall;
+            sb.append(sobj.getClassName());
+            sb.append('.');
+        }
+        sb.append(getFunctionName());
+        sb.append(", arity=");
+        sb.append(getArity());
+        sb.append(justbody ? "]\n" : "] }\n");
+        return sb.toString();
+    }
+
+    @Override
+    public int getArity() {
         return arity;
     }
 

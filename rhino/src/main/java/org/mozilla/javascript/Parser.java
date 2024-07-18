@@ -689,6 +689,7 @@ public class Parser {
                     n.putProp(Node.ARROW_FUNCTION_PROP, Boolean.TRUE);
                 }
                 pn.addStatement(n);
+                pn.setLength(n.getLength());
             } else {
                 bodyLoop:
                 for (; ; ) {
@@ -725,6 +726,9 @@ public class Parser {
                     }
                     pn.addStatement(n);
                 }
+                int end = ts.tokenEnd;
+                if (mustMatchToken(Token.RC, "msg.no.brace.after.body", true)) end = ts.tokenEnd;
+                pn.setLength(end - pos);
             }
         } catch (ParserException e) {
             // Ignore it
@@ -733,11 +737,7 @@ public class Parser {
             inUseStrictDirective = savedStrictMode;
         }
 
-        int end = ts.tokenEnd;
         getAndResetJsDoc();
-        if (!isExpressionClosure && mustMatchToken(Token.RC, "msg.no.brace.after.body", true))
-            end = ts.tokenEnd;
-        pn.setLength(end - pos);
         return pn;
     }
 
@@ -848,47 +848,48 @@ public class Parser {
     }
 
     private FunctionNode function(int type) throws IOException {
-        return function(type, false);
-    }
-
-    private FunctionNode function(int type, boolean isGenerator) throws IOException {
+        boolean isGenerator = false;
         int syntheticType = type;
         int baseLineno = ts.lineno; // line number where source starts
         int functionSourceStart = ts.tokenBeg; // start of "function" kwd
         Name name = null;
         AstNode memberExprNode = null;
 
-        if (matchToken(Token.NAME, true)) {
-            name = createNameNode(true, Token.NAME);
-            if (inUseStrictDirective) {
-                String id = name.getIdentifier();
-                if ("eval".equals(id) || "arguments".equals(id)) {
-                    reportError("msg.bad.id.strict", id);
+        do {
+            if (matchToken(Token.NAME, true)) {
+                name = createNameNode(true, Token.NAME);
+                if (inUseStrictDirective) {
+                    String id = name.getIdentifier();
+                    if ("eval".equals(id) || "arguments".equals(id)) {
+                        reportError("msg.bad.id.strict", id);
+                    }
                 }
-            }
-            if (!matchToken(Token.LP, true)) {
+                if (!matchToken(Token.LP, true)) {
+                    if (compilerEnv.isAllowMemberExprAsFunctionName()) {
+                        AstNode memberExprHead = name;
+                        name = null;
+                        memberExprNode = memberExprTail(false, memberExprHead);
+                    }
+                    mustMatchToken(Token.LP, "msg.no.paren.parms", true);
+                }
+            } else if (matchToken(Token.LP, true)) {
+                // Anonymous function:  leave name as null
+            } else if (matchToken(Token.MUL, true)
+                    && (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6)) {
+                // ES6 generator function
+                isGenerator = true;
+                continue;
+            } else {
                 if (compilerEnv.isAllowMemberExprAsFunctionName()) {
-                    AstNode memberExprHead = name;
-                    name = null;
-                    memberExprNode = memberExprTail(false, memberExprHead);
+                    // Note that memberExpr can not start with '(' like
+                    // in function (1+2).toString(), because 'function (' already
+                    // processed as anonymous function
+                    memberExprNode = memberExpr(false);
                 }
                 mustMatchToken(Token.LP, "msg.no.paren.parms", true);
             }
-        } else if (matchToken(Token.LP, true)) {
-            // Anonymous function:  leave name as null
-        } else if (matchToken(Token.MUL, true)
-                && (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6)) {
-            // ES6 generator function
-            return function(type, true);
-        } else {
-            if (compilerEnv.isAllowMemberExprAsFunctionName()) {
-                // Note that memberExpr can not start with '(' like
-                // in function (1+2).toString(), because 'function (' already
-                // processed as anonymous function
-                memberExprNode = memberExpr(false);
-            }
-            mustMatchToken(Token.LP, "msg.no.paren.parms", true);
-        }
+            break;
+        } while (isGenerator);
         int lpPos = currentToken == Token.LP ? ts.tokenBeg : -1;
 
         if (memberExprNode != null) {
@@ -914,9 +915,11 @@ public class Parser {
         PerFunctionVariables savedVars = new PerFunctionVariables(fnNode);
         try {
             parseFunctionParams(fnNode);
-            fnNode.setBody(parseFunctionBody(type, fnNode));
-            fnNode.setEncodedSourceBounds(functionSourceStart, ts.tokenEnd);
-            fnNode.setLength(ts.tokenEnd - functionSourceStart);
+            AstNode body = parseFunctionBody(type, fnNode);
+            fnNode.setBody(body);
+            int end = functionSourceStart + body.getPosition() + body.getLength();
+            fnNode.setRawSourceBounds(functionSourceStart, end);
+            fnNode.setLength(end - functionSourceStart);
 
             if (compilerEnv.isStrictMode() && !fnNode.getBody().hasConsistentReturnUsage()) {
                 String msg =
@@ -999,9 +1002,11 @@ public class Parser {
                 fnNode.putProp(Node.DESTRUCTURING_PARAMS, destructuringNode);
             }
 
-            fnNode.setBody(parseFunctionBody(FunctionNode.ARROW_FUNCTION, fnNode));
-            fnNode.setEncodedSourceBounds(functionSourceStart, ts.tokenEnd);
-            fnNode.setLength(ts.tokenEnd - functionSourceStart);
+            AstNode body = parseFunctionBody(FunctionNode.ARROW_FUNCTION, fnNode);
+            fnNode.setBody(body);
+            int end = functionSourceStart + body.getPosition() + body.getLength();
+            fnNode.setRawSourceBounds(functionSourceStart, end);
+            fnNode.setLength(end - functionSourceStart);
         } finally {
             savedVars.restore();
         }
@@ -3686,7 +3691,7 @@ public class Parser {
             }
             AstNode nn = new Name(property.getPosition(), property.getString());
             ObjectProperty pn = new ObjectProperty();
-            pn.putProp(Node.SHORTHAND_PROPERTY_NAME, Boolean.TRUE);
+            pn.setIsShorthand(true);
             pn.setLeftAndRight(property, nn);
             return pn;
         }

@@ -8,6 +8,8 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.debug.DebuggableScript;
 
+import java.util.EnumSet;
+
 final class InterpretedFunction extends NativeFunction implements Script {
     private static final long serialVersionUID = 541475680333911468L;
 
@@ -113,8 +115,8 @@ final class InterpretedFunction extends NativeFunction implements Script {
     }
 
     @Override
-    public String getEncodedSource() {
-        return Interpreter.getEncodedSource(idata);
+    public String getRawSource() {
+        return Interpreter.getRawSource(idata);
     }
 
     @Override
@@ -162,7 +164,7 @@ final class InterpretedFunction extends NativeFunction implements Script {
      */
     @Override
     public String toString() {
-        return decompile(2, 0);
+        return decompile(2, EnumSet.noneOf(DecompilerFlag.class));
     }
 
     void setArguments(final Arguments arguments) {

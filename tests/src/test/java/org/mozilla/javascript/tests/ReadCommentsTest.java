@@ -30,7 +30,7 @@ public class ReadCommentsTest {
         }
         AstRoot ast = p.parse(testJs, "test", 1);
         IRFactory irf = new IRFactory(compilerEnv, testJs);
-        ScriptNode tree = irf.transformTree(ast, testJs);
+        ScriptNode tree = irf.transformTree(ast);
 
         Assert.assertEquals(1, tree.getFunctions().size());
         Assert.assertEquals(
