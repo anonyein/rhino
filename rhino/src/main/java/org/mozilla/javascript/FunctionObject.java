@@ -369,7 +369,7 @@ public class FunctionObject extends BaseFunction {
                 // HtmlUnit include scope
                 Object[] invokeArgs = {cx, scope, args, this, b};
                 result =
-                        (member.isCtor())
+                        member.isCtor()
                                 ? member.newInstance(invokeArgs)
                                 : member.invoke(null, invokeArgs);
             }
