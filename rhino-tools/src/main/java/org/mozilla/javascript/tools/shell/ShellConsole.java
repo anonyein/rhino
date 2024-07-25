@@ -244,7 +244,8 @@ public abstract class ShellConsole {
 
         SimpleShellConsole(InputStream in, PrintStream ps, Charset cs) {
             this.in = in;
-            this.out = new PrintWriter(ps, false, StandardCharsets.UTF_8);
+            // HtmlUnit this.out = new PrintWriter(ps, false, StandardCharsets.UTF_8);
+            this.out = new PrintWriter(ps);
             this.reader = new BufferedReader(new InputStreamReader(in, cs));
         }
 

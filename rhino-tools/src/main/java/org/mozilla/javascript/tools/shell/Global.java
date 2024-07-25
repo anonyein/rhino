@@ -446,7 +446,8 @@ public class Global extends ImporterTopLevel {
                 this.setErr(savedErr);
                 cx.setErrorReporter(savedErrorReporter);
                 resultString +=
-                        err.toString(StandardCharsets.UTF_8) + out.toString(StandardCharsets.UTF_8);
+                // HtmlUnit        err.toString(StandardCharsets.UTF_8) + out.toString(StandardCharsets.UTF_8);
+                                   err.toString() + out.toString();
             }
             if (!doctestOutputMatches(expectedString.toString(), resultString)) {
                 String message =
@@ -697,11 +698,13 @@ public class Global extends ImporterTopLevel {
 
         int exitCode = runProcess(cmd, environment, wd, in, out, err);
         if (outBytes != null) {
-            String s = ScriptRuntime.toString(outObj) + outBytes.toString(StandardCharsets.UTF_8);
+            // HtmlUni String s = ScriptRuntime.toString(outObj) + outBytes.toString(StandardCharsets.UTF_8);
+            String s = ScriptRuntime.toString(outObj) + outBytes.toString();
             ScriptableObject.putProperty(params, "output", s);
         }
         if (errBytes != null) {
-            String s = ScriptRuntime.toString(errObj) + errBytes.toString(StandardCharsets.UTF_8);
+            // HtmlUni String s = ScriptRuntime.toString(errObj) + errBytes.toString(StandardCharsets.UTF_8);
+            String s = ScriptRuntime.toString(errObj) + errBytes.toString();
             ScriptableObject.putProperty(params, "err", s);
         }
 

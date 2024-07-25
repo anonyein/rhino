@@ -54,7 +54,16 @@ public class VMBridge_jdk18 extends VMBridge {
 
     @Override
     protected boolean tryToMakeAccessible(AccessibleObject accessible) {
-        return accessible.trySetAccessible();
+        // HtmlUnit return accessible.trySetAccessible();
+        if (accessible.isAccessible()) {
+            return true;
+        }
+        try {
+            accessible.setAccessible(true);
+        } catch (Exception ex) {
+        }
+
+        return accessible.isAccessible();
     }
 
     @Override
