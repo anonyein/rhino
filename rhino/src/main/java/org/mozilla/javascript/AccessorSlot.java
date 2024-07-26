@@ -10,6 +10,10 @@ import java.io.Serializable;
 public class AccessorSlot extends Slot {
     private static final long serialVersionUID = 1677840254177335827L;
 
+    AccessorSlot(Object name, int index) {
+        super(name, index, 0);
+    }
+
     AccessorSlot(Slot oldSlot) {
         super(oldSlot);
     }
