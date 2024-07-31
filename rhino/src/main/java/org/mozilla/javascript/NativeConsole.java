@@ -54,7 +54,7 @@ public class NativeConsole extends IdScriptableObject {
         if (sealed) {
             obj.sealObject();
         }
-        ScriptableObject.defineProperty(scope, "console", obj, ScriptableObject.DONTENUM);
+        ScriptableObject.defineProperty(scope, "jconsole", obj, ScriptableObject.DONTENUM);
     }
 
     private NativeConsole(ConsolePrinter printer) {
