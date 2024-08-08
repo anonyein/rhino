@@ -318,6 +318,43 @@ public class Context implements Closeable {
     public static final int FEATURE_ENABLE_XML_SECURE_PARSING = 20;
 
     /**
+     * Special to HtmlUnit's Rhino fork.
+     *
+     * <p>Whether the "someFunc.arguments" is a read-only view of the function argument or the real
+     * arguments.
+     *
+     * <p>By default {@link #hasFeature(int)} returns false.
+     */
+    public static final int FEATURE_HTMLUNIT_FN_ARGUMENTS_IS_RO_VIEW = 101;
+
+    /**
+     * Special to HtmlUnit's Rhino fork.
+     *
+     * <p>Indicates that function is defined even before its declaration, inside a block.
+     *
+     * <p>By default {@link #hasFeature(int)} returns false.
+     */
+    public static final int FEATURE_HTMLUNIT_FUNCTION_DECLARED_FORWARD_IN_BLOCK = 103;
+
+    /**
+     * Special to HtmlUnit's Rhino fork.
+     *
+     * <p>Indicates that {@code MemberBox.toString()} contains property name.
+     *
+     * <p>By default {@link #hasFeature(int)} returns true.
+     */
+    public static final int FEATURE_HTMLUNIT_MEMBERBOX_NAME = 105;
+
+    /**
+     * Special to HtmlUnit's Rhino fork.
+     *
+     * <p>Indicates that {@code MemberBox.toString()} starts with new line.
+     *
+     * <p>By default {@link #hasFeature(int)} returns true.
+     */
+    public static final int FEATURE_HTMLUNIT_MEMBERBOX_NEWLINE = 106;
+
+    /**
      * Configure whether the entries in a Java Map can be accessed by properties.
      *
      * <p>Not enabled:
@@ -1394,7 +1431,7 @@ public class Context implements Closeable {
         return compileString(source, null, null, sourceName, lineno, securityDomain);
     }
 
-    final Script compileString(
+    protected Script compileString(
             String source,
             Evaluator compiler,
             ErrorReporter compilationErrorReporter,
@@ -1439,7 +1476,7 @@ public class Context implements Closeable {
         return compileFunction(scope, source, null, null, sourceName, lineno, securityDomain);
     }
 
-    final Function compileFunction(
+    protected Function compileFunction(
             Scriptable scope,
             String source,
             Evaluator compiler,

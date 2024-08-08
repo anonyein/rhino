@@ -838,12 +838,17 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
 
     private IdFunctionObject newIdFunction(
             Object tag, int id, String name, int arity, Scriptable scope) {
-        IdFunctionObject function = null;
-        if (Context.getContext().getLanguageVersion() < Context.VERSION_ES6) {
-            function = new IdFunctionObject(this, tag, id, name, arity, scope);
-        } else {
-            function = new IdFunctionObjectES6(this, tag, id, name, arity, scope);
-        }
+        // HtmlUnit disable this check because we always use VERSION_ES6
+        // and this creates many many expensive calls to Context.getCurrentContext();
+        //
+        // IdFunctionObject function = null;
+        // if (Context.getContext().getLanguageVersion() < Context.VERSION_ES6) {
+        //    function = new IdFunctionObject(this, tag, id, name, arity, scope);
+        // } else {
+        //     function = new IdFunctionObjectES6(this, tag, id, name, arity, scope);
+        // }
+
+        IdFunctionObject function = new IdFunctionObjectES6(this, tag, id, name, arity, scope);
 
         if (isSealed()) {
             function.sealObject();
@@ -852,7 +857,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
     }
 
     @Override
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object key, ScriptableObject desc, boolean checkValid) {
         if (key instanceof CharSequence) {
             String name = key.toString();
@@ -875,7 +880,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                     }
                     attr = applyDescriptorToAttributeBitset(attr, desc);
                     setAttributes(name, attr);
-                    return;
+                    return true;
                 }
             }
             if (prototypeValues != null) {
@@ -905,12 +910,12 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                             super.delete(name);
                         }
 
-                        return;
+                        return true;
                     }
                 }
             }
         }
-        super.defineOwnProperty(cx, key, desc, checkValid);
+        return super.defineOwnProperty(cx, key, desc, checkValid);
     }
 
     @Override

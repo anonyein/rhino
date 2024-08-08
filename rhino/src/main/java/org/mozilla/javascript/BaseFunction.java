@@ -320,6 +320,12 @@ public class BaseFunction extends IdScriptableObject implements Function {
             case Id_toString:
                 {
                     BaseFunction realf = realFunction(thisObj, f);
+
+                    //HtmlUnit
+                    if (realf instanceof NativeFunction) {
+                        return ((NativeFunction) realf).getRawSource();
+                    }
+
                     int indent = ScriptRuntime.toInt32(args, 0);
                     return realf.decompile(indent, EnumSet.noneOf(DecompilerFlag.class));
                 }
@@ -327,6 +333,12 @@ public class BaseFunction extends IdScriptableObject implements Function {
             case Id_toSource:
                 {
                     BaseFunction realf = realFunction(thisObj, f);
+
+                    //HtmlUnit
+                    if (realf instanceof NativeFunction) {
+                        return ((NativeFunction) realf).getRawSource();
+                    }
+
                     int indent = 0;
                     EnumSet<DecompilerFlag> flags = EnumSet.of(DecompilerFlag.TO_SOURCE);
                     if (args.length != 0) {
@@ -461,13 +473,11 @@ public class BaseFunction extends IdScriptableObject implements Function {
         if (!justbody) {
             sb.append("function ");
             sb.append(getFunctionName());
-            sb.append("() {\n\t");
+            sb.append("() {\n    ");
         }
-        sb.append("[native code, arity=");
-        sb.append(getArity());
-        sb.append("]\n");
+        sb.append("[native code]\n");
         if (!justbody) {
-            sb.append("}\n");
+            sb.append("}");
         }
         return sb.toString();
     }

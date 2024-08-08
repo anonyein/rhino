@@ -8,14 +8,19 @@ package org.mozilla.javascript;
 
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.v8dtoa.DoubleConversion;
@@ -289,6 +294,9 @@ public class ScriptRuntime {
             NativeWeakMap.init(scope, sealed);
             NativeWeakSet.init(scope, sealed);
             NativeBigInt.init(scope, sealed);
+
+            NativeProxy.init(cx, scope, sealed);
+            NativeReflect.init(cx, scope, sealed);
         }
 
         if (scope instanceof TopLevel) {
@@ -2545,6 +2553,9 @@ public class ScriptRuntime {
      * caller must call ScriptRuntime.lastStoredScriptable() immediately after calling this method.
      */
     public static Callable getNameFunctionAndThis(String name, Context cx, Scriptable scope) {
+        if ("eval".equals(name)) {
+            lastEvalTopCalled_ = true;
+        }
         Scriptable parent = scope.getParentScope();
         if (parent == null) {
             Object result = topScopeName(cx, scope, name);
@@ -2638,6 +2649,9 @@ public class ScriptRuntime {
      */
     public static Callable getPropFunctionAndThis(
             Object obj, String property, Context cx, Scriptable scope) {
+        if ("eval".equals(property)) {
+            lastEvalTopCalled_ = false;
+        }
         Scriptable thisObj = toObjectOrNull(cx, obj, scope);
         return getPropFunctionAndThisHelper(obj, property, cx, thisObj);
     }
@@ -2747,12 +2761,24 @@ public class ScriptRuntime {
      * <p>See ECMA 11.2.2
      */
     public static Scriptable newObject(Object fun, Context cx, Scriptable scope, Object[] args) {
-        if (!(fun instanceof Function)) {
+        if (!(fun instanceof Constructable)) {
             throw notFunctionError(fun);
         }
-        Function function = (Function) fun;
+        Constructable function = (Constructable) fun;
         return function.construct(cx, scope, args);
     }
+
+    /**
+     * This indicates whether last call of "eval" was at the top scope (i.e. "eval()") or not (i.e.
+     * "scope.eval()"), as each one has different behavior.
+     *
+     * <p>Ideally, we should have "eval" at top scope and we use Context.FEATURE_DYNAMIC_SCOPE, but
+     * it will complex the code.
+     *
+     * <p>The current implementation sets this value to true when "eval" is called, and false on
+     * "something.eval()"
+     */
+    private static boolean lastEvalTopCalled_;
 
     public static Object callSpecial(
             Context cx,
@@ -2766,6 +2792,9 @@ public class ScriptRuntime {
             int lineNumber) {
         if (callType == Node.SPECIALCALL_EVAL) {
             if (thisObj.getParentScope() == null && NativeGlobal.isEvalFunction(fun)) {
+                if (!lastEvalTopCalled_) {
+                    scope = thisObj;
+                }
                 return evalSpecial(cx, scope, callerThis, args, filename, lineNumber);
             }
         } else if (callType == Node.SPECIALCALL_WITH) {
@@ -2845,7 +2874,7 @@ public class ScriptRuntime {
     }
 
     /** @return true if the passed in Scriptable looks like an array */
-    private static boolean isArrayLike(Scriptable obj) {
+    public static boolean isArrayLike(Scriptable obj) {
         return obj != null
                 && (obj instanceof NativeArray
                         || obj instanceof Arguments
@@ -2853,7 +2882,7 @@ public class ScriptRuntime {
     }
 
     static Object[] getApplyArguments(Context cx, Object arg1) {
-        if (arg1 == null || Undefined.isUndefined(arg1)) {
+        if (arg1 == null || Undefined.isUndefined(arg1) || arg1 == ScriptRuntime.emptyArgs) {
             return ScriptRuntime.emptyArgs;
         } else if (arg1 instanceof Scriptable && isArrayLike((Scriptable) arg1)) {
             return cx.getElements((Scriptable) arg1);
@@ -3713,6 +3742,10 @@ public class ScriptRuntime {
             if (y instanceof Boolean) {
                 return x.equals(y);
             }
+        } else if (x instanceof SymbolKey) {
+            return x.equals(y);
+        } else if (y instanceof SymbolKey) {
+            return y.equals(x);
         } else if (x instanceof Scriptable) {
             if (x instanceof Wrapper && y instanceof Wrapper) {
                 return ((Wrapper) x).unwrap() == ((Wrapper) y).unwrap();
@@ -4703,6 +4736,10 @@ public class ScriptRuntime {
     public static EcmaError rangeErrorById(String messageId, Object... args) {
         String msg = getMessageById(messageId, args);
         return rangeError(msg);
+    }
+
+    public static EcmaError networkError(String message) {
+        return constructError("NetworkError", message);
     }
 
     public static EcmaError typeError(String message) {

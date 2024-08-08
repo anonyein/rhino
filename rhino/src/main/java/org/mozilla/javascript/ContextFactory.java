@@ -290,6 +290,12 @@ public class ContextFactory {
 
             case Context.FEATURE_INTL_402:
                 return false;
+
+            case Context.FEATURE_HTMLUNIT_FN_ARGUMENTS_IS_RO_VIEW:
+                return false;
+
+            case Context.FEATURE_HTMLUNIT_FUNCTION_DECLARED_FORWARD_IN_BLOCK:
+                return false;
         }
         // It is a bug to call the method with unknown featureIndex
         throw new IllegalArgumentException(String.valueOf(featureIndex));

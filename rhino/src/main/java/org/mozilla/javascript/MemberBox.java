@@ -111,7 +111,16 @@ final class MemberBox implements Serializable {
 
     @Override
     public String toString() {
-        return memberObject.toString();
+        Context context = Context.getCurrentContext();
+        if (!context.hasFeature(Context.FEATURE_HTMLUNIT_MEMBERBOX_NAME)) {
+            return "function () { [native code] }";
+        }
+        String name = memberObject.getName();
+        name = Character.toLowerCase(name.charAt(3)) + name.substring(4);
+        if (context.hasFeature(Context.FEATURE_HTMLUNIT_MEMBERBOX_NEWLINE)) {
+            return "\nfunction " + name + "() {\n    [native code]\n}\n";
+        }
+        return "function " + name + "() {\n    [native code]\n}";
     }
 
     /** Function returned by calls to __lookupGetter__ */
@@ -233,7 +242,27 @@ final class MemberBox implements Serializable {
                 e = ((InvocationTargetException) e).getTargetException();
             } while ((e instanceof InvocationTargetException));
             if (e instanceof ContinuationPending) throw (ContinuationPending) e;
-            throw Context.throwAsScriptRuntimeEx(e);
+
+            if (e instanceof RhinoException) throw Context.throwAsScriptRuntimeEx(e);
+            else throw new RuntimeException("Exception invoking " + method.getName(), e);
+        } catch (IllegalArgumentException iae) {
+            StringBuilder builder = new StringBuilder();
+            for (Object arg : args) {
+                String type = arg == null ? "null" : arg.getClass().getSimpleName();
+                if (builder.length() != 0) {
+                    builder.append(", ");
+                }
+                builder.append(type);
+            }
+            throw new IllegalArgumentException(
+                    "Exception invoking "
+                            + method.getDeclaringClass().getSimpleName()
+                            + '.'
+                            + method.getName()
+                            + "() with arguments ["
+                            + builder
+                            + "]",
+                    iae);
         } catch (Exception ex) {
             throw Context.throwAsScriptRuntimeEx(ex);
         }

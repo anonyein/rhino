@@ -261,7 +261,9 @@ public class FunctionNode extends ScriptNode {
      *     closure, or in a number of other situations.
      */
     public boolean requiresActivation() {
-        return needsActivation;
+        // Special to HtmlUnit's Rhino fork.
+        // return needsActivation;
+        return true;
     }
 
     public void setRequiresActivation() {

@@ -157,10 +157,13 @@ public abstract class ScriptableObject
     }
 
     private static SlotMapContainer createSlotMap(int initialSize) {
-        Context cx = Context.getCurrentContext();
-        if ((cx != null) && cx.hasFeature(Context.FEATURE_THREAD_SAFE_OBJECTS)) {
-            return new ThreadSafeSlotMapContainer(initialSize);
-        }
+        // HtmlUnit disable this check because we do not use this feature
+        // and this creates many many expensive calls to Context.getCurrentContext();
+        //
+        // Context cx = Context.getCurrentContext();
+        // if ((cx != null) && cx.hasFeature(Context.FEATURE_THREAD_SAFE_OBJECTS)) {
+        //     return new ThreadSafeSlotMapContainer(initialSize);
+        // }
         return new SlotMapContainer(initialSize);
     }
 
@@ -1574,9 +1577,9 @@ public abstract class ScriptableObject
      * @param id the name/index of the property
      * @param desc the new property descriptor, as described in 8.6.1
      */
-    public void defineOwnProperty(Context cx, Object id, ScriptableObject desc) {
+    public boolean defineOwnProperty(Context cx, Object id, ScriptableObject desc) {
         checkPropertyDefinition(desc);
-        defineOwnProperty(cx, id, desc, true);
+        return defineOwnProperty(cx, id, desc, true);
     }
 
     /**
@@ -1589,7 +1592,7 @@ public abstract class ScriptableObject
      * @param desc the new property descriptor, as described in 8.6.1
      * @param checkValid whether to perform validity checks
      */
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object id, ScriptableObject desc, boolean checkValid) {
 
         Object key = null;
@@ -1666,6 +1669,7 @@ public abstract class ScriptableObject
                     slot.setAttributes(attributes);
                     return slot;
                 });
+        return true;
     }
 
     /**
@@ -1786,7 +1790,7 @@ public abstract class ScriptableObject
         return ScriptRuntime.shallowEq(currentValue, newValue);
     }
 
-    protected int applyDescriptorToAttributeBitset(int attributes, ScriptableObject desc) {
+    protected int applyDescriptorToAttributeBitset(int attributes, Scriptable desc) {
         Object enumerable = getProperty(desc, "enumerable");
         if (enumerable != NOT_FOUND) {
             attributes =
@@ -1840,7 +1844,7 @@ public abstract class ScriptableObject
      * @param desc a property descriptor
      * @return true if this is a generic descriptor.
      */
-    protected boolean isGenericDescriptor(ScriptableObject desc) {
+    protected static boolean isGenericDescriptor(ScriptableObject desc) {
         return !isDataDescriptor(desc) && !isAccessorDescriptor(desc);
     }
 
@@ -1858,6 +1862,11 @@ public abstract class ScriptableObject
     }
 
     protected static ScriptableObject ensureScriptableObject(Object arg) {
+        // Special to HtmlUnit's Rhino fork.
+        // if ( !(arg instanceof ScriptableObject) )
+        //    throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.typeof(arg));
+        // return (ScriptableObject) arg;
+
         if (arg instanceof ScriptableObject) {
             return (ScriptableObject) arg;
         }
@@ -1971,8 +1980,9 @@ public abstract class ScriptableObject
         return isExtensible;
     }
 
-    public void preventExtensions() {
+    public boolean preventExtensions() {
         isExtensible = false;
+        return true;
     }
 
     /**
@@ -2319,6 +2329,15 @@ public abstract class ScriptableObject
         return !base.has(index, obj);
     }
 
+    /** A version of deleteProperty for properties with Symbol keys. */
+    public static boolean deleteProperty(Scriptable obj, Symbol key) {
+        Scriptable base = getBase(obj, key);
+        if (base == null) return true;
+        SymbolScriptable scriptable = ensureSymbolScriptable(base);
+        scriptable.delete(key);
+        return !scriptable.has(key, obj);
+    }
+
     /**
      * Returns an array of all ids from an object and its prototypes.
      *
@@ -2580,12 +2599,21 @@ public abstract class ScriptableObject
             int attr = slot.getAttributes();
             if ((attr & READONLY) == 0)
                 throw Context.reportRuntimeErrorById("msg.var.redecl", name);
-            if ((attr & UNINITIALIZED_CONST) != 0) {
+
+            // HtmlUnit - HACK
+            // disable this to allow const updates in loops
+            // see JavaScriptEngine2Test.constInLoop()
+            //
+            // HtmlUnit - HACK
+            // if ((attr & UNINITIALIZED_CONST) != 0) {
+            // HtmlUnit - HACK
                 slot.value = value;
                 // clear the bit on const initialization
                 if (constFlag != UNINITIALIZED_CONST)
                     slot.setAttributes(attr & ~UNINITIALIZED_CONST);
-            }
+             // HtmlUnit - HACK
+             // }
+             // HtmlUnit - HACK
             return true;
         }
         return slot.setValue(value, this, start);

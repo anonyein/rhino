@@ -14,7 +14,7 @@ package org.mozilla.javascript;
  * @see org.mozilla.javascript.NativeCall
  * @author Norris Boyd
  */
-final class Arguments extends IdScriptableObject {
+class Arguments extends IdScriptableObject {
     private static final long serialVersionUID = 4275508002492040609L;
 
     private static final String FTAG = "Arguments";
@@ -47,6 +47,19 @@ final class Arguments extends IdScriptableObject {
                 ScriptableObject.DONTENUM);
     }
 
+    public Arguments(final Arguments original) {
+        this.activation = original.activation;
+
+        setParentScope(original.getParentScope());
+        setPrototype(original.getPrototype());
+
+        args = original.args;
+        lengthObj = original.lengthObj;
+        calleeObj = original.calleeObj;
+
+        callerObj = original.callerObj;
+    }
+
     @Override
     public String getClassName() {
         return FTAG;
@@ -74,7 +87,7 @@ final class Arguments extends IdScriptableObject {
             putIntoActivation(index, value);
         }
         synchronized (this) {
-            if (args == activation.originalArgs) {
+            if (activation != null && args == activation.originalArgs) {
                 args = args.clone();
             }
             args[index] = value;
@@ -119,6 +132,8 @@ final class Arguments extends IdScriptableObject {
         if (cx.isStrictMode()) {
             return false;
         }
+        if (activation == null) return false;
+
         NativeFunction f = activation.function;
         int definedCount = f.getParamCount();
         if (index < definedCount) {
@@ -353,33 +368,34 @@ final class Arguments extends IdScriptableObject {
     }
 
     @Override
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object id, ScriptableObject desc, boolean checkValid) {
         super.defineOwnProperty(cx, id, desc, checkValid);
         if (ScriptRuntime.isSymbol(id)) {
-            return;
+            return true;
         }
 
         double d = ScriptRuntime.toNumber(id);
         int index = (int) d;
-        if (d != index) return;
+        if (d != index) return true;
 
         Object value = arg(index);
-        if (value == NOT_FOUND) return;
+        if (value == NOT_FOUND) return true;
 
         if (isAccessorDescriptor(desc)) {
             removeArg(index);
-            return;
+            return true;
         }
 
         Object newValue = getProperty(desc, "value");
-        if (newValue == NOT_FOUND) return;
+        if (newValue == NOT_FOUND) return true;
 
         replaceArg(index, newValue);
 
         if (isFalse(getProperty(desc, "writable"))) {
             removeArg(index);
         }
+        return true;
     }
 
     // ECMAScript2015

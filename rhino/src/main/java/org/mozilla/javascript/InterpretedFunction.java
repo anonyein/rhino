@@ -8,12 +8,16 @@ package org.mozilla.javascript;
 
 import org.mozilla.javascript.debug.DebuggableScript;
 
+import java.util.EnumSet;
+
 final class InterpretedFunction extends NativeFunction implements Script {
     private static final long serialVersionUID = 541475680333911468L;
 
     InterpreterData idata;
     SecurityController securityController;
     Object securityDomain;
+
+    private Arguments arguments;
 
     private InterpretedFunction(InterpreterData idata, Object staticSecurityDomain) {
         this.idata = idata;
@@ -152,6 +156,58 @@ final class InterpretedFunction extends NativeFunction implements Script {
     @Override
     protected boolean getParamOrVarConst(int index) {
         return idata.argIsConst[index];
+    }
+
+    /**
+     * Provides the decompiled source of the function what is helpful
+     * while debugging.
+     */
+    @Override
+    public String toString() {
+        return decompile(2, EnumSet.noneOf(DecompilerFlag.class));
+    }
+
+    void setArguments(final Arguments arguments) {
+        if (arguments == null) {
+            this.arguments = null;
+            return;
+        }
+
+        final Context currentContext = Context.getCurrentContext();
+        if (currentContext.hasFeature(Context.FEATURE_HTMLUNIT_FN_ARGUMENTS_IS_RO_VIEW)) {
+            this.arguments = new Arguments(arguments) {
+                @Override
+                public void put(int index, Scriptable start, Object value) {
+                    // ignore
+                }
+                
+                @Override
+                public void put(String name, Scriptable start, Object value) {
+                    // ignore
+                }
+
+                @Override
+                public void delete(int index) {
+                    // ignore
+                }
+                
+                @Override
+                public void delete(String name) {
+                    // ignore
+                }
+            };
+        }
+        else {
+            this.arguments = arguments;
+        }
+    }
+
+    @Override
+    public Object get(final String name, final Scriptable start) {
+        if (start == this && "arguments".equals(name)) {
+            return this.arguments;
+        }
+        return super.get(name, start);
     }
 
     boolean hasFunctionNamed(String name) {

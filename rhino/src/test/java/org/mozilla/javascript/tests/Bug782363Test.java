@@ -57,7 +57,7 @@ public class Bug782363Test {
         Parser p = new Parser(compilerEnv);
         AstRoot ast = p.parse(source.toString(), "<eval>", 1);
         IRFactory irf = new IRFactory(compilerEnv, source.toString());
-        ScriptNode tree = irf.transformTree(ast);
+        ScriptNode tree = irf.transformTree(ast, source.toString());
 
         Codegen codegen = new Codegen();
         codegen.setMainMethodClass(mainMethodClassName);

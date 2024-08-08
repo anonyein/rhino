@@ -131,27 +131,28 @@ public class NativeArray extends IdScriptableObject implements List {
 
     @Override
     protected void fillConstructorProperties(IdFunctionObject ctor) {
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_join, "join", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reverse, "reverse", 0);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_sort, "sort", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_push, "push", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_pop, "pop", 0);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_shift, "shift", 0);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_unshift, "unshift", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_splice, "splice", 2);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_concat, "concat", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_slice, "slice", 2);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_indexOf, "indexOf", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_lastIndexOf, "lastIndexOf", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_every, "every", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_filter, "filter", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_forEach, "forEach", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_map, "map", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_some, "some", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_find, "find", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findIndex, "findIndex", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduce, "reduce", 1);
-        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduceRight, "reduceRight", 1);
+        // Special to HtmlUnit's Rhino fork.
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_join, "join", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reverse, "reverse", 0);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_sort, "sort", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_push, "push", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_pop, "pop", 0);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_shift, "shift", 0);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_unshift, "unshift", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_splice, "splice", 2);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_concat, "concat", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_slice, "slice", 2);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_indexOf, "indexOf", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_lastIndexOf, "lastIndexOf", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_every, "every", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_filter, "filter", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_forEach, "forEach", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_map, "map", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_some, "some", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_find, "find", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findIndex, "findIndex", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduce, "reduce", 1);
+        // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduceRight, "reduceRight", 1);
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_isArray, "isArray", 1);
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_of, "of", 0);
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_from, "from", 1);
@@ -758,7 +759,7 @@ public class NativeArray extends IdScriptableObject implements List {
     }
 
     @Override
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object id, ScriptableObject desc, boolean checkValid) {
         long index = toArrayIndex(id);
         if (index >= length) {
@@ -789,6 +790,7 @@ public class NativeArray extends IdScriptableObject implements List {
             lengthAttr =
                     getAttributes("length"); // Update cached attributes value for length property
         }
+        return true;
     }
 
     /** See ECMA 15.4.1,2 */
@@ -2107,6 +2109,9 @@ public class NativeArray extends IdScriptableObject implements List {
     private static boolean js_isArray(Object o) {
         if (!(o instanceof Scriptable)) {
             return false;
+        }
+        if (o instanceof NativeProxy) {
+            return js_isArray(((NativeProxy) o).getTargetThrowIfRevoked());
         }
         return "Array".equals(((Scriptable) o).getClassName());
     }

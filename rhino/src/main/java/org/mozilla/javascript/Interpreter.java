@@ -1336,6 +1336,11 @@ public final class Interpreter extends Icode implements Evaluator {
                             case Token.THROW:
                                 {
                                     Object value = stack[stackTop];
+                                    if (value instanceof NativeError) {
+                                        EcmaError er = ScriptRuntime.constructError("", "");
+                                        ((NativeError) value).setStackProvider(er);
+                                    }
+
                                     if (value == DBL_MRK)
                                         value = ScriptRuntime.wrapNumber(sDbl[stackTop]);
                                     --stackTop;
@@ -2021,12 +2026,12 @@ public final class Interpreter extends Icode implements Evaluator {
                                             continue StateLoop;
                                         }
                                     }
-                                    if (!(lhs instanceof Function)) {
+                                    if (!(lhs instanceof Constructable)) {
                                         if (lhs == DBL_MRK)
                                             lhs = ScriptRuntime.wrapNumber(sDbl[stackTop]);
                                         throw ScriptRuntime.notFunctionError(lhs);
                                     }
-                                    Function fun = (Function) lhs;
+                                    Constructable fun = (Constructable) lhs;
 
                                     if (fun instanceof IdFunctionObject) {
                                         IdFunctionObject ifun = (IdFunctionObject) fun;
@@ -2967,11 +2972,22 @@ public final class Interpreter extends Icode implements Evaluator {
                 throw Context.reportRuntimeErrorById(
                         "msg.var.redecl", frame.idata.argNames[indexReg]);
             }
-            if ((varAttributes[indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
-                vars[indexReg] = stack[stackTop];
-                varAttributes[indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
-                varDbls[indexReg] = sDbl[stackTop];
-            }
+
+            // HtmlUnit - HACK
+            // disable this to allow const updates in loops
+            // see JavaScriptEngine2Test.constInLoop()
+            //
+            // HtmlUnit - HACK
+            // if ((varAttributes[indexReg] & ScriptableObject.UNINITIALIZED_CONST)
+            //    != 0)
+            // {
+            // HtmlUnit - HACK
+            vars[indexReg] = stack[stackTop];
+            varAttributes[indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
+            varDbls[indexReg] = sDbl[stackTop];
+            // HtmlUnit - HACK
+            // }
+            // HtmlUnit - HACK
         } else {
             Object val = stack[stackTop];
             if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(sDbl[stackTop]);
@@ -3377,6 +3393,17 @@ public final class Interpreter extends Icode implements Evaluator {
 
     private static void enterFrame(
             Context cx, CallFrame frame, Object[] args, boolean continuationRestart) {
+        if (frame.parentFrame != null && !frame.parentFrame.fnOrScript.isScript()) {
+            frame.fnOrScript.defaultPut("caller", frame.parentFrame.fnOrScript);
+            frame.fnOrScript.setAttributes("caller", ScriptableObject.DONTENUM);
+        }
+        if (frame.scope instanceof NativeCall) {
+            Object arguments = ScriptableObject.getProperty(frame.scope, "arguments");
+            if (arguments instanceof Arguments) {
+                frame.fnOrScript.setArguments((Arguments) arguments);
+            }
+        }
+
         boolean usesActivation = frame.idata.itsNeedsActivation;
         boolean isDebugged = frame.debuggerFrame != null;
         if (usesActivation || isDebugged) {
@@ -3423,6 +3450,9 @@ public final class Interpreter extends Icode implements Evaluator {
     }
 
     private static void exitFrame(Context cx, CallFrame frame, Object throwable) {
+        frame.fnOrScript.defaultPut("caller", null);
+        frame.fnOrScript.setArguments(null);
+
         if (frame.idata.itsNeedsActivation) {
             ScriptRuntime.exitActivationFunction(cx);
         }
