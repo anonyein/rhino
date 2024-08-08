@@ -31,6 +31,7 @@ jobs:
     - name: Check everything with Gradle
       run: |
         ./gradlew :rhino-all:build
+        java -jar rhino-all/build/libs/rhino-all-1.7.16-SNAPSHOT.jar
     - name: Upload results
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
