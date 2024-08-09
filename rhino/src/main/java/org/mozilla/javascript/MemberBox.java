@@ -242,8 +242,9 @@ final class MemberBox implements Serializable {
                 e = ((InvocationTargetException) e).getTargetException();
             } while ((e instanceof InvocationTargetException));
             if (e instanceof ContinuationPending) throw (ContinuationPending) e;
+            throw Context.throwAsScriptRuntimeEx(e);
 
-            if (e instanceof RhinoException) throw Context.throwAsScriptRuntimeEx(e);
+            /*if (e instanceof RhinoException) throw Context.throwAsScriptRuntimeEx(e);
             else throw new RuntimeException("Exception invoking " + method.getName(), e);
         } catch (IllegalArgumentException iae) {
             StringBuilder builder = new StringBuilder();
@@ -262,7 +263,7 @@ final class MemberBox implements Serializable {
                             + "() with arguments ["
                             + builder
                             + "]",
-                    iae);
+                    iae);*/
         } catch (Exception ex) {
             throw Context.throwAsScriptRuntimeEx(ex);
         }
