@@ -15,7 +15,11 @@ import java.math.MathContext;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+<<<<<<< HEAD
 import java.util.List;
+=======
+import java.util.HashSet;
+>>>>>>> origin/master
 import java.util.Locale;
 import java.util.Optional;
 import java.util.ResourceBundle;
@@ -1150,10 +1154,10 @@ public class ScriptRuntime {
         if (cx.iterating == null) {
             toplevel = true;
             iterating = false;
-            cx.iterating = new ObjToIntMap(31);
+            cx.iterating = new HashSet<>();
         } else {
             toplevel = false;
-            iterating = cx.iterating.has(thisObj);
+            iterating = cx.iterating.contains(thisObj);
         }
 
         StringBuilder result = new StringBuilder(128);
@@ -1166,7 +1170,7 @@ public class ScriptRuntime {
         // so we don't leak memory
         try {
             if (!iterating) {
-                cx.iterating.intern(thisObj); // stop recursion.
+                cx.iterating.add(thisObj); // stop recursion.
                 Object[] ids = thisObj.getIds();
                 for (int i = 0; i < ids.length; i++) {
                     Object id = ids[i];
@@ -2255,7 +2259,7 @@ public class ScriptRuntime {
         private static final long serialVersionUID = 1L;
         Scriptable obj;
         Object[] ids;
-        ObjToIntMap used;
+        HashSet<Object> used;
         Object currentId;
         int index;
         int enumType; /* one of ENUM_INIT_KEYS, ENUM_INIT_VALUES,
@@ -2404,7 +2408,7 @@ public class ScriptRuntime {
                 continue;
             }
             Object id = x.ids[x.index++];
-            if (x.used != null && x.used.has(id)) {
+            if (x.used != null && x.used.contains(id)) {
                 continue;
             }
             if (id instanceof Symbol) {
@@ -2494,10 +2498,10 @@ public class ScriptRuntime {
             Object[] previous = x.ids;
             int L = previous.length;
             if (x.used == null) {
-                x.used = new ObjToIntMap(L);
+                x.used = new HashSet<>();
             }
             for (int i = 0; i != L; ++i) {
-                x.used.intern(previous[i]);
+                x.used.add(previous[i]);
             }
         }
         x.ids = ids;

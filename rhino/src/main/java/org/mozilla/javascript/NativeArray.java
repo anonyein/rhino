@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -150,6 +151,7 @@ public class NativeArray extends IdScriptableObject implements List {
 
     @Override
     protected void fillConstructorProperties(IdFunctionObject ctor) {
+<<<<<<< HEAD
         // Special to HtmlUnit's Rhino fork.
         // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_join, "join", 1);
         // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reverse, "reverse", 0);
@@ -172,6 +174,31 @@ public class NativeArray extends IdScriptableObject implements List {
         // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findIndex, "findIndex", 1);
         // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduce, "reduce", 1);
         // addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduceRight, "reduceRight", 1);
+=======
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_join, "join", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reverse, "reverse", 0);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_sort, "sort", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_push, "push", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_pop, "pop", 0);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_shift, "shift", 0);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_unshift, "unshift", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_splice, "splice", 2);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_concat, "concat", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_slice, "slice", 2);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_indexOf, "indexOf", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_lastIndexOf, "lastIndexOf", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_every, "every", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_filter, "filter", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_forEach, "forEach", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_map, "map", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_some, "some", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_find, "find", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findIndex, "findIndex", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findLast, "findLast", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_findLastIndex, "findLastIndex", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduce, "reduce", 1);
+        addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_reduceRight, "reduceRight", 1);
+>>>>>>> origin/master
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_isArray, "isArray", 1);
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_of, "of", 0);
         addIdFunctionProperty(ctor, ARRAY_TAG, ConstructorId_from, "from", 1);
@@ -280,6 +307,14 @@ public class NativeArray extends IdScriptableObject implements List {
                 arity = 1;
                 s = "findIndex";
                 break;
+            case Id_findLast:
+                arity = 1;
+                s = "findLast";
+                break;
+            case Id_findLastIndex:
+                arity = 1;
+                s = "findLastIndex";
+                break;
             case Id_reduce:
                 arity = 1;
                 s = "reduce";
@@ -360,6 +395,8 @@ public class NativeArray extends IdScriptableObject implements List {
                 case ConstructorId_some:
                 case ConstructorId_find:
                 case ConstructorId_findIndex:
+                case ConstructorId_findLast:
+                case ConstructorId_findLastIndex:
                 case ConstructorId_reduce:
                 case ConstructorId_reduceRight:
                     {
@@ -492,6 +529,13 @@ public class NativeArray extends IdScriptableObject implements List {
                 case Id_findIndex:
                     return ArrayLikeAbstractOperations.iterativeMethod(
                             cx, f, IterativeOperation.FIND_INDEX, scope, thisObj, args);
+                case Id_findLast:
+                    return ArrayLikeAbstractOperations.iterativeMethod(
+                            cx, f, IterativeOperation.FIND_LAST, scope, thisObj, args);
+                case Id_findLastIndex:
+                    return ArrayLikeAbstractOperations.iterativeMethod(
+                            cx, f, IterativeOperation.FIND_LAST_INDEX, scope, thisObj, args);
+
                 case Id_reduce:
                     return ArrayLikeAbstractOperations.reduceMethod(
                             cx, ReduceOperation.REDUCE, scope, thisObj, args);
@@ -1168,10 +1212,10 @@ public class NativeArray extends IdScriptableObject implements List {
         if (cx.iterating == null) {
             toplevel = true;
             iterating = false;
-            cx.iterating = new ObjToIntMap(31);
+            cx.iterating = new HashSet<Scriptable>();
         } else {
             toplevel = false;
-            iterating = cx.iterating.has(o);
+            iterating = cx.iterating.contains(o);
         }
 
         // Make sure cx.iterating is set to null when done
@@ -1179,7 +1223,7 @@ public class NativeArray extends IdScriptableObject implements List {
         try {
             if (!iterating) {
                 // stop recursion
-                cx.iterating.put(o, 0);
+                cx.iterating.add(o);
 
                 // make toSource print null and undefined values in recent versions
                 boolean skipUndefinedAndNull =
@@ -2509,6 +2553,12 @@ public class NativeArray extends IdScriptableObject implements List {
             case "findIndex":
                 id = Id_findIndex;
                 break;
+            case "findLast":
+                id = Id_findLast;
+                break;
+            case "findLastIndex":
+                id = Id_findLastIndex;
+                break;
             case "reduce":
                 id = Id_reduce;
                 break;
@@ -2572,18 +2622,20 @@ public class NativeArray extends IdScriptableObject implements List {
             Id_some = 21,
             Id_find = 22,
             Id_findIndex = 23,
-            Id_reduce = 24,
-            Id_reduceRight = 25,
-            Id_fill = 26,
-            Id_keys = 27,
-            Id_values = 28,
-            Id_entries = 29,
-            Id_includes = 30,
-            Id_copyWithin = 31,
-            Id_at = 32,
-            Id_flat = 33,
-            Id_flatMap = 34,
-            SymbolId_unscopables = 35,
+            Id_findLast = 24,
+            Id_findLastIndex = 25,
+            Id_reduce = 26,
+            Id_reduceRight = 27,
+            Id_fill = 28,
+            Id_keys = 29,
+            Id_values = 30,
+            Id_entries = 31,
+            Id_includes = 32,
+            Id_copyWithin = 33,
+            Id_at = 34,
+            Id_flat = 35,
+            Id_flatMap = 36,
+            SymbolId_unscopables = 37,
             MAX_PROTOTYPE_ID = SymbolId_unscopables;
     private static final int ConstructorId_join = -Id_join,
             ConstructorId_reverse = -Id_reverse,
@@ -2604,11 +2656,13 @@ public class NativeArray extends IdScriptableObject implements List {
             ConstructorId_some = -Id_some,
             ConstructorId_find = -Id_find,
             ConstructorId_findIndex = -Id_findIndex,
+            ConstructorId_findLast = -Id_findLast,
+            ConstructorId_findLastIndex = -Id_findLastIndex,
             ConstructorId_reduce = -Id_reduce,
             ConstructorId_reduceRight = -Id_reduceRight,
-            ConstructorId_isArray = -26,
-            ConstructorId_of = -27,
-            ConstructorId_from = -28;
+            ConstructorId_isArray = -28,
+            ConstructorId_of = -29,
+            ConstructorId_from = -30;
 
     /** Internal representation of the JavaScript array's length property. */
     private long length;
