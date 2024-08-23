@@ -461,7 +461,7 @@ public class ScriptRuntime {
     // Preserve backward-compatibility with historical value of this.
     public static final double negativeZero = Double.longBitsToDouble(0x8000000000000000L);
 
-    public static final Double zeroObj = Double.valueOf(0.0);
+    public static final Integer zeroObj = Integer.valueOf(0);
     public static final Double negativeZeroObj = Double.valueOf(-0.0);
 
     static double stringPrefixToNumber(String s, int start, int radix) {
@@ -3015,6 +3015,9 @@ public class ScriptRuntime {
                 || (val1 instanceof BigInteger && val2 instanceof Number)) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
         }
+        if (val1 instanceof Integer && val2 instanceof Integer) {
+            return add((Integer) val1, (Integer) val2);
+        }
         if (val1 instanceof Number && val2 instanceof Number) {
             return wrapNumber(((Number) val1).doubleValue() + ((Number) val2).doubleValue());
         }
@@ -3088,6 +3091,8 @@ public class ScriptRuntime {
             return ((BigInteger) val1).subtract((BigInteger) val2);
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return subtract((Integer) val1, (Integer) val2);
         } else {
             return val1.doubleValue() - val2.doubleValue();
         }
@@ -3098,6 +3103,8 @@ public class ScriptRuntime {
             return ((BigInteger) val1).multiply((BigInteger) val2);
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return multiply((Integer) val1, (Integer) val2);
         } else {
             return val1.doubleValue() * val2.doubleValue();
         }
@@ -3112,6 +3119,8 @@ public class ScriptRuntime {
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
         } else {
+            // Do not try to optimize for the integer case because JS doesn't
+            // have an integer type.
             return val1.doubleValue() / val2.doubleValue();
         }
     }
@@ -3125,8 +3134,39 @@ public class ScriptRuntime {
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
         } else {
+            // Do not try an integer-specific optimization because we need to get
+            // both +0 and -0 right.
             return val1.doubleValue() % val2.doubleValue();
         }
+    }
+
+    // Integer-optimized methods.
+
+    public static Object add(Integer i1, Integer i2) {
+        // Try to add integers for efficiency, but account for overflow
+        long r = (long) i1.intValue() + (long) i2.intValue();
+        if ((r >= Integer.MIN_VALUE) && (r <= Integer.MAX_VALUE)) {
+            return Integer.valueOf((int) r);
+        }
+        return Double.valueOf((double) r);
+    }
+
+    public static Number subtract(Integer i1, Integer i2) {
+        // Account for overflow
+        long r = (long) i1.intValue() - (long) i2.intValue();
+        if ((r >= Integer.MIN_VALUE) && (r <= Integer.MAX_VALUE)) {
+            return Integer.valueOf((int) r);
+        }
+        return Double.valueOf((double) r);
+    }
+
+    public static Number multiply(Integer i1, Integer i2) {
+        // Aunt for overflow
+        long r = (long) i1.intValue() * (long) i2.intValue();
+        if ((r >= Integer.MIN_VALUE) && (r <= Integer.MAX_VALUE)) {
+            return Integer.valueOf((int) r);
+        }
+        return Double.valueOf((double) r);
     }
 
     public static Number exponentiate(Number val1, Number val2) {
@@ -3154,6 +3194,8 @@ public class ScriptRuntime {
             return ((BigInteger) val1).and((BigInteger) val2);
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return Integer.valueOf(((Integer) val1).intValue() & ((Integer) val2).intValue());
         } else {
             int result = toInt32(val1.doubleValue()) & toInt32(val2.doubleValue());
             return Double.valueOf(result);
@@ -3165,6 +3207,8 @@ public class ScriptRuntime {
             return ((BigInteger) val1).or((BigInteger) val2);
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return Integer.valueOf(((Integer) val1).intValue() | ((Integer) val2).intValue());
         } else {
             int result = toInt32(val1.doubleValue()) | toInt32(val2.doubleValue());
             return Double.valueOf(result);
@@ -3176,6 +3220,8 @@ public class ScriptRuntime {
             return ((BigInteger) val1).xor((BigInteger) val2);
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return Integer.valueOf(((Integer) val1).intValue() ^ ((Integer) val2).intValue());
         } else {
             int result = toInt32(val1.doubleValue()) ^ toInt32(val2.doubleValue());
             return Double.valueOf(result);
@@ -3193,6 +3239,8 @@ public class ScriptRuntime {
             }
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return Integer.valueOf(((Integer) val1).intValue() << ((Integer) val2).intValue());
         } else {
             int result = toInt32(val1.doubleValue()) << toInt32(val2.doubleValue());
             return Double.valueOf(result);
@@ -3210,6 +3258,8 @@ public class ScriptRuntime {
             }
         } else if (val1 instanceof BigInteger || val2 instanceof BigInteger) {
             throw ScriptRuntime.typeErrorById("msg.cant.convert.to.number", "BigInt");
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            return Integer.valueOf(((Integer) val1).intValue() >> ((Integer) val2).intValue());
         } else {
             int result = toInt32(val1.doubleValue()) >> toInt32(val2.doubleValue());
             return Double.valueOf(result);
@@ -3219,6 +3269,8 @@ public class ScriptRuntime {
     public static Number bitwiseNOT(Number val) {
         if (val instanceof BigInteger) {
             return ((BigInteger) val).not();
+        } else if (val instanceof Integer) {
+            return Integer.valueOf(~((Integer) val).intValue());
         } else {
             int result = ~toInt32(val.doubleValue());
             return Double.valueOf(result);
@@ -3316,6 +3368,12 @@ public class ScriptRuntime {
             } else {
                 result = ((BigInteger) number).subtract(BigInteger.ONE);
             }
+        } else if (number instanceof Integer) {
+            if ((incrDecrMask & Node.DECR_FLAG) == 0) {
+                result = ((Integer) number).intValue() + 1;
+            } else {
+                result = ((Integer) number).intValue() - 1;
+            }
         } else {
             if ((incrDecrMask & Node.DECR_FLAG) == 0) {
                 result = number.doubleValue() + 1.0;
@@ -3356,6 +3414,12 @@ public class ScriptRuntime {
             } else {
                 result = ((BigInteger) number).subtract(BigInteger.ONE);
             }
+        } else if (number instanceof Integer) {
+            if ((incrDecrMask & Node.DECR_FLAG) == 0) {
+                result = ((Integer) number).intValue() + 1;
+            } else {
+                result = ((Integer) number).intValue() - 1;
+            }
         } else {
             if ((incrDecrMask & Node.DECR_FLAG) == 0) {
                 result = number.doubleValue() + 1.0;
@@ -3395,6 +3459,12 @@ public class ScriptRuntime {
             } else {
                 result = ((BigInteger) number).subtract(BigInteger.ONE);
             }
+        } else if (number instanceof Integer) {
+            if ((incrDecrMask & Node.DECR_FLAG) == 0) {
+                result = ((Integer) number).intValue() + 1;
+            } else {
+                result = ((Integer) number).intValue() - 1;
+            }
         } else {
             if ((incrDecrMask & Node.DECR_FLAG) == 0) {
                 result = number.doubleValue() + 1.0;
@@ -3413,6 +3483,17 @@ public class ScriptRuntime {
     public static Number negate(Number val) {
         if (val instanceof BigInteger) {
             return ((BigInteger) val).negate();
+        }
+        if (val instanceof Integer) {
+            int iv = (Integer) val;
+            if (iv == 0) {
+                return negativeZeroObj;
+            }
+            if (iv > Integer.MIN_VALUE && iv < Integer.MAX_VALUE) {
+                // Account for twos-complement representation by not trying
+                // to negate values at the extremes
+                return Integer.valueOf(-((Integer) val).intValue());
+            }
         }
         return -val.doubleValue();
     }
