@@ -1,16 +1,13 @@
 package org.mozilla.javascript;
 
 import java.util.ArrayList;
-<<<<<<< HEAD
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
-=======
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
->>>>>>> origin/master
 
 /**
  * Abstract Object Operations as defined by EcmaScript
@@ -252,7 +249,6 @@ public class AbstractEcmaObjectOperations {
     }
 
     /**
-<<<<<<< HEAD
      * CreateListFromArrayLike ( obj [ , elementTypes ] )
      *
      * <p>https://262.ecma-international.org/12.0/#sec-createlistfromarraylike
@@ -407,7 +403,8 @@ public class AbstractEcmaObjectOperations {
             }
         }
         return true;
-=======
+
+    /**
      * Implement the ECMAScript abstract operation "GroupBy" defined in section 7.3.35 of ECMA262.
      *
      * @param cx
@@ -466,6 +463,5 @@ public class AbstractEcmaObjectOperations {
         }
 
         return groups;
->>>>>>> origin/master
     }
 }
