@@ -5,6 +5,7 @@ on:
     branches: [ html-fork ]
   pull_request:
     branches: [ html-fork ]
+  workflow_dispatch:
 
 permissions: read-all
 
