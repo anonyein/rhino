@@ -403,6 +403,7 @@ public class AbstractEcmaObjectOperations {
             }
         }
         return true;
+    }
 
     /**
      * Implement the ECMAScript abstract operation "GroupBy" defined in section 7.3.35 of ECMA262.
