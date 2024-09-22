@@ -75,7 +75,10 @@ public class LambdaConstructor extends LambdaFunction {
         if ((flags & CONSTRUCTOR_FUNCTION) == 0) {
             throw ScriptRuntime.typeErrorById("msg.constructor.no.function", getFunctionName());
         }
-        return targetConstructor.construct(cx, scope, args);
+        if (target == null) {
+            return targetConstructor.construct(cx, scope, args);
+        }
+        return target.call(cx, scope, thisObj, args);
     }
 
     @Override
