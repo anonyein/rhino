@@ -311,6 +311,7 @@ class JavaMembers {
         return map.values().toArray(new Method[0]);
     }
 
+    @SuppressWarnings("deprecation")
     private void discoverAccessibleMethods(
             Class<?> clazz,
             Map<MethodSignature, Method> map,
@@ -327,11 +328,13 @@ class JavaMembers {
 
                                 if (isPublic(mods) || isProtected(mods) || includePrivate) {
                                     MethodSignature sig = new MethodSignature(method);
-                                    if (includePrivate) {
+                                    // We don't want to replace the deprecated method here
+                                    // because it is not available on Android.
+                                    if (includePrivate && !method.isAccessible()) {
                                         map.computeIfAbsent(
                                                 sig,
                                                 k -> {
-                                                    method.trySetAccessible();
+                                                    method.setAccessible(true);
                                                     return method;
                                                 });
                                     } else {
@@ -656,6 +659,7 @@ class JavaMembers {
         return cl.getConstructors();
     }
 
+    @SuppressWarnings("deprecation")
     private Field[] getAccessibleFields(boolean includeProtected, boolean includePrivate) {
         if (includePrivate || includeProtected) {
             try {
@@ -669,9 +673,7 @@ class JavaMembers {
                     for (Field field : declared) {
                         int mod = field.getModifiers();
                         if (includePrivate || isPublic(mod) || isProtected(mod)) {
-                            // HtmlUnit field.trySetAccessible();
                             if (!field.isAccessible()) field.setAccessible(true);
-
                             fieldsList.add(field);
                         }
                     }
