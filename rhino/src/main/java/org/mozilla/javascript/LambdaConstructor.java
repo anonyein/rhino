@@ -78,6 +78,10 @@ public class LambdaConstructor extends LambdaFunction {
         this.flags = flags;
     }
 
+    protected Constructable getTargetConstructor() {
+        return targetConstructor;
+    }
+    
     /**
      * Create a new function that may be used as a constructor. The new object will have the
      * Function prototype and no parent. The caller is responsible for binding this object to the
