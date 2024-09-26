@@ -33,11 +33,29 @@ jobs:
         ./gradlew check
     - name: Upload results
       uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+      if: ${{ always() }}
       with:
         name: reports-java-${{ matrix.java }}
         path: '*/build/reports'
-    - name: Upload jar
-      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+    - name: Build and test Java 17
+      env:
+        RHINO_TEST_JAVA_VERSION: "17"
+      run: >-
+        ./gradlew check
+    - name: Upload results Java 17
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+      if: ${{ always() }}
       with:
-        name: jar-libs-${{ matrix.java }}
-        path: '*/build/libs'
+        name: reports-java-17
+        path: '*/build/reports'
+    - name: Build and test Java 11
+      env:
+        RHINO_TEST_JAVA_VERSION: "11"
+      run: >-
+        ./gradlew check
+    - name: Upload results Java 11
+      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+      if: ${{ always() }}
+      with:
+        name: reports-java-11
+        path: '*/build/reports'
