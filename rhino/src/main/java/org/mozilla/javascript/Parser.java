@@ -1306,10 +1306,10 @@ public class Parser {
                 // see JavaScriptEngine2Test.constInIfElse()
                 //
                 // HtmlUnit - HACK
-                currentToken = Token.LET;
-                pn = letStatement();
-                if (pn instanceof VariableDeclaration && peekToken() == Token.SEMI) break;
-                return pn;
+                // currentToken = Token.LET;
+                // pn = letStatement();
+                // if (pn instanceof VariableDeclaration && peekToken() == Token.SEMI) break;
+                // return pn;
                 // HtmlUnit - HACK
             case Token.VAR:
                 consumeToken();
@@ -1719,9 +1719,9 @@ public class Parser {
             // see JavaScriptEngine2Test.constInOfLoop()
             //
             // HtmlUnit - HACK
-            } else if (tt == Token.CONST) {
-                consumeToken();
-                init = variables(Token.LET, ts.tokenBeg, false);
+            // } else if (tt == Token.CONST) {
+            //     consumeToken();
+            //     init = variables(Token.LET, ts.tokenBeg, false);
             // HtmlUnit - HACK
 
             } else {
