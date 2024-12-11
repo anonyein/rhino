@@ -41,6 +41,7 @@ import org.mozilla.javascript.ast.FunctionCall;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.GeneratorExpression;
 import org.mozilla.javascript.ast.GeneratorExpressionLoop;
+import org.mozilla.javascript.ast.GeneratorMethodDefinition;
 import org.mozilla.javascript.ast.IdeErrorReporter;
 import org.mozilla.javascript.ast.IfStatement;
 import org.mozilla.javascript.ast.InfixExpression;
@@ -3815,6 +3816,11 @@ public class Parser {
                 if (pname instanceof Name || pname instanceof StringLiteral) {
                     // For complicated reasons, parsing a name does not advance the token
                     pname.setLineColumnNumber(lineNumber(), columnNumber());
+                } else if (pname instanceof GeneratorMethodDefinition) {
+                    // Same as above
+                    ((GeneratorMethodDefinition) pname)
+                            .getMethodName()
+                            .setLineColumnNumber(lineNumber(), columnNumber());
                 }
 
                 // This code path needs to handle both destructuring object
@@ -3861,13 +3867,21 @@ public class Parser {
                     } else {
                         propertyName = ts.getString();
                         // short-hand method definition
-                        ObjectProperty objectProp = methodDefinition(ppos, pname, entryKind);
+                        ObjectProperty objectProp =
+                                methodDefinition(
+                                        ppos,
+                                        pname,
+                                        entryKind,
+                                        pname instanceof GeneratorMethodDefinition);
                         pname.setJsDocNode(jsdocNode);
                         elems.add(objectProp);
                     }
                 } else {
                     pname.setJsDocNode(jsdocNode);
                     elems.add(plainProperty(pname, tt));
+                }
+                if (pname instanceof GeneratorMethodDefinition && entryKind != METHOD_ENTRY) {
+                    reportError("msg.bad.prop");
                 }
             }
 
@@ -3960,6 +3974,22 @@ public class Parser {
                 }
                 break;
 
+            case Token.MUL:
+                if (compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
+                    int pos = ts.tokenBeg;
+                    nextToken();
+                    int lineno = lineNumber();
+                    int column = columnNumber();
+                    pname = objliteralProperty();
+
+                    pname = new GeneratorMethodDefinition(pos, ts.tokenEnd - pos, pname);
+                    pname.setLineColumnNumber(lineno, column);
+                } else {
+                    reportError("msg.bad.prop");
+                    return null;
+                }
+                break;
+
             default:
                 if (compilerEnv.isReservedKeywordAsIdentifier()
                         && TokenStream.isKeyword(
@@ -4008,8 +4038,8 @@ public class Parser {
         return pn;
     }
 
-    private ObjectProperty methodDefinition(int pos, AstNode propName, int entryKind)
-            throws IOException {
+    private ObjectProperty methodDefinition(
+            int pos, AstNode propName, int entryKind, boolean isGenerator) throws IOException {
         FunctionNode fn = function(FunctionNode.FUNCTION_EXPRESSION, true);
         // We've already parsed the function name, so fn should be anonymous.
         Name name = fn.getFunctionName();
@@ -4029,6 +4059,9 @@ public class Parser {
             case METHOD_ENTRY:
                 pn.setIsNormalMethod();
                 fn.setFunctionIsNormalMethod();
+                if (isGenerator) {
+                    fn.setIsES6Generator();
+                }
                 break;
         }
         int end = getNodeEnd(fn);
@@ -4543,6 +4576,8 @@ public class Parser {
         } else if (id instanceof NumberLiteral) {
             double n = ((NumberLiteral) id).getNumber();
             key = ScriptRuntime.getIndexObject(n);
+        } else if (id instanceof GeneratorMethodDefinition) {
+            key = getPropKey(((GeneratorMethodDefinition) id).getMethodName());
         } else {
             key = null; // Filled later
         }
