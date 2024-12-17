@@ -184,7 +184,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return booleanTrapResult;
         }
 
-        return ScriptableObject.hasProperty(target, name);
+        if (start == this) {
+            start = target;
+        }
+        return target.has(name, start);
     }
 
     /**
@@ -233,7 +236,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return booleanTrapResult;
         }
 
-        return ScriptableObject.hasProperty(target, index);
+        if (start == this) {
+            start = target;
+        }
+        return target.has(index, start);
     }
 
     /**
@@ -263,7 +269,11 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return booleanTrapResult;
         }
 
-        return ScriptableObject.hasProperty(target, key);
+        if (start == this) {
+            start = target;
+        }
+        SymbolScriptable symbolScriptableTarget = ensureSymbolScriptable(target);
+        return symbolScriptableTarget.has(key, start);
     }
 
     /**
@@ -333,7 +343,8 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
                             "proxy [[OwnPropertyKeys]] must return an array with only string and symbol elements");
 
             boolean extensibleTarget = target.isExtensible();
-            Object[] targetKeys = target.getIds(getNonEnumerable, getSymbols);
+            // don't use the provided values here we have to check all
+            Object[] targetKeys = target.getIds(true, true);
 
             HashSet<Object> uncheckedResultKeys = new HashSet<Object>(trapResult);
             if (uncheckedResultKeys.size() != trapResult.size()) {
@@ -358,7 +369,7 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             for (Object key : targetNonconfigurableKeys) {
                 if (!uncheckedResultKeys.contains(key)) {
                     throw ScriptRuntime.typeError(
-                            "proxy can't skip a non-configurable property " + key);
+                            "proxy can't skip a non-configurable property '" + key + "'");
                 }
                 uncheckedResultKeys.remove(key);
             }
@@ -378,7 +389,7 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
                 throw ScriptRuntime.typeError("proxy can't skip properties");
             }
 
-            return trapResult.toArray();
+            // target is not extensible, fall back to the target call
         }
 
         return target.getIds(getNonEnumerable, getSymbols);
@@ -437,7 +448,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return trapResult;
         }
 
-        return ScriptRuntime.getObjectProp(target, name, Context.getContext());
+        if (start == this) {
+            start = target;
+        }
+        return target.get(name, start);
     }
 
     /**
@@ -494,7 +508,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return trapResult;
         }
 
-        return ScriptRuntime.getObjectIndex(target, index, Context.getContext());
+        if (start == this) {
+            start = target;
+        }
+        return target.get(index, start);
     }
 
     /**
@@ -611,7 +628,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return; // true
         }
 
-        ScriptableObject.putProperty(target, name, value);
+        if (start == this) {
+            start = target;
+        }
+        target.put(name, start, value);
     }
 
     /**
@@ -671,7 +691,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
             return; // true
         }
 
-        ScriptableObject.putProperty(target, index, value);
+        if (start == this) {
+            start = target;
+        }
+        target.put(index, start, value);
     }
 
     /**
@@ -1038,7 +1061,7 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
                 }
             } else {
                 if (!AbstractEcmaObjectOperations.isCompatiblePropertyDescriptor(
-                        extensibleTarget, desc, targetDesc)) {
+                        cx, extensibleTarget, desc, targetDesc)) {
                     throw ScriptRuntime.typeError(
                             "proxy can't define an incompatible property descriptor");
                 }
@@ -1272,11 +1295,10 @@ final class NativeProxy extends ScriptableObject implements Callable, Constructa
                     "2",
                     Integer.toString(args.length));
         }
-        ScriptableObject trgt = ensureScriptableObject(args[0]);
+        ScriptableObject target = ensureScriptableObjectButNotSymbol(args[0]);
+        ScriptableObject handler = ensureScriptableObjectButNotSymbol(args[1]);
 
-        ScriptableObject hndlr = ensureScriptableObject(args[1]);
-
-        NativeProxy proxy = new NativeProxy(trgt, hndlr);
+        NativeProxy proxy = new NativeProxy(target, handler);
         proxy.setPrototypeDirect(ScriptableObject.getClassPrototype(scope, PROXY_TAG));
         proxy.setParentScope(scope);
         return proxy;
