@@ -91,25 +91,23 @@ public class FunctionObject extends BaseFunction {
         this.functionName = name;
         Class<?>[] types = member.argTypes;
         int arity = types.length;
-        if (arity == 5 && (types[2].isArray() || types[3].isArray())) {
+        if (arity == 4 && (types[1].isArray() || types[2].isArray())) {
             // Either variable args or an error.
-            if (types[2].isArray()) {
+            if (types[1].isArray()) {
                 if (!isStatic
                         || types[0] != ScriptRuntime.ContextClass
-                        || types[1] != ScriptRuntime.ScriptableClass // HtmlUnit scope
-                        || types[2].getComponentType() != ScriptRuntime.ObjectClass
-                        || types[3] != ScriptRuntime.FunctionClass
-                        || types[4] != Boolean.TYPE) {
+                        || types[1].getComponentType() != ScriptRuntime.ObjectClass
+                        || types[2] != ScriptRuntime.FunctionClass
+                        || types[3] != Boolean.TYPE) {
                     throw Context.reportRuntimeErrorById("msg.varargs.ctor", methodName);
                 }
                 parmsLength = VARARGS_CTOR;
             } else {
                 if (!isStatic
                         || types[0] != ScriptRuntime.ContextClass
-                        || types[1] != ScriptRuntime.ScriptableClass // HtmlUnit scope
-                        || types[2] != ScriptRuntime.ScriptableClass
-                        || types[3].getComponentType() != ScriptRuntime.ObjectClass
-                        || types[4] != ScriptRuntime.FunctionClass) {
+                        || types[1] != ScriptRuntime.ScriptableClass
+                        || types[2].getComponentType() != ScriptRuntime.ObjectClass
+                        || types[3] != ScriptRuntime.FunctionClass) {
                     throw Context.reportRuntimeErrorById("msg.varargs.fun", methodName);
                 }
                 parmsLength = VARARGS_METHOD;
@@ -122,9 +120,7 @@ public class FunctionObject extends BaseFunction {
                     int tag = getTypeTag(types[i]);
                     if (tag == JAVA_UNSUPPORTED_TYPE) {
                         throw Context.reportRuntimeErrorById(
-                                "msg.bad.parms",
-                                types[i].getName(),
-                                member.getDeclaringClass().getName() + "#" + methodName);
+                                "msg.bad.parms", types[i].getName(), methodName);
                     }
                     typeTags[i] = (byte) tag;
                 }
@@ -359,15 +355,13 @@ public class FunctionObject extends BaseFunction {
             }
 
             if (parmsLength == VARARGS_METHOD) {
-                // HtmlUnit include scope
-                Object[] invokeArgs = {cx, scope, thisObj, args, this};
+                Object[] invokeArgs = {cx, thisObj, args, this};
                 result = member.invoke(null, invokeArgs);
                 checkMethodResult = true;
             } else {
                 boolean inNewExpr = (thisObj == null);
                 Boolean b = inNewExpr ? Boolean.TRUE : Boolean.FALSE;
-                // HtmlUnit include scope
-                Object[] invokeArgs = {cx, scope, args, this, b};
+                Object[] invokeArgs = {cx, args, this, b};
                 result =
                         member.isCtor()
                                 ? member.newInstance(invokeArgs)

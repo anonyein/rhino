@@ -2692,23 +2692,25 @@ public class Context implements Closeable {
             Evaluator evaluator = createInterpreter();
             if (evaluator != null) return evaluator.getSourcePositionFromStack(cx, linep);
         }
-        /**
-         * A bit of a hack, but the only way to get filename and line number from an enclosing
-         * frame.
-         */
-        StackTraceElement[] stackTrace = new Throwable().getStackTrace();
-        for (StackTraceElement st : stackTrace) {
-            String file = st.getFileName();
-            if (!(file == null || file.endsWith(".java"))) {
-                int line = st.getLineNumber();
-                if (line >= 0) {
-                    linep[0] = line;
-                    return file;
-                }
+
+        return getSourcePositionFromJavaStack(linep);
+    }
+
+    /** Returns the current filename in the java stack. */
+    static String getSourcePositionFromJavaStack(int[] linep) {
+        StackTraceElement[] stack = new Throwable().getStackTrace();
+        for (StackTraceElement e : stack) {
+            if (frameMatches(e)) {
+                linep[0] = e.getLineNumber();
+                return e.getFileName();
             }
         }
-
         return null;
+    }
+
+    private static boolean frameMatches(StackTraceElement e) {
+        return (e.getFileName() == null || !e.getFileName().endsWith(".java"))
+                && e.getLineNumber() > 0;
     }
 
     RegExpProxy getRegExpProxy() {

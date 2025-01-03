@@ -42,7 +42,7 @@ public class Builtins {
                 ScriptableObject.PERMANENT | ScriptableObject.DONTENUM);
     }
 
-    public static void print(Context cx, Scriptable scope, Scriptable thisObj, Object[] args, Function f)
+    public static void print(Context cx, Scriptable thisObj, Object[] args, Function f)
             throws IOException {
         Builtins self = getSelf(thisObj);
         for (Object arg : args) {
