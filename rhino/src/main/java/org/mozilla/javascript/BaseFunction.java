@@ -449,6 +449,11 @@ public class BaseFunction extends IdScriptableObject implements Function {
     }
 
     @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+        return null;
+    }
+
+    @Override
     public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
         if (cx.getLanguageVersion() >= Context.VERSION_ES6 && this.getHomeObject() != null) {
             // Only methods have home objects associated with them

@@ -43,6 +43,11 @@ public final class NativeContinuation extends IdScriptableObject implements Func
         return Interpreter.restartContinuation(this, cx, scope, args);
     }
 
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+        return null;
+    }
+
     public static boolean isContinuationConstructor(IdFunctionObject f) {
         if (f.hasTag(FTAG) && f.methodId() == Id_constructor) {
             return true;

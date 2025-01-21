@@ -3013,12 +3013,24 @@ public final class Interpreter extends Icode implements Evaluator {
         cx.lastInterpreterFrame = frame;
         frame.savedCallOp = op;
         frame.savedStackTop = stackTop;
-        stack[stackTop] =
-                fun.call(
-                        cx,
-                        calleeScope,
-                        funThisObj,
-                        getArgsArray(stack, sDbl, stackTop + 2, indexReg));
+        Object stackTopOne = null;
+        if (fun instanceof Function) {
+            stackTopOne =
+                    ((Function) fun).call(
+                            cx,
+                            calleeScope,
+                            funThisObj,
+                            stack[stackTop],
+                            getArgsArray(stack, sDbl, stackTop + 2, indexReg));
+        }
+        if (null == stackTopOne)
+            stackTopOne =
+                    fun.call(
+                            cx,
+                            calleeScope,
+                            funThisObj,
+                            getArgsArray(stack, sDbl, stackTop + 2, indexReg));
+        stack[stackTop] = stackTopOne;
 
         return new ContinueLoop(frame, stackTop, indexReg);
     }

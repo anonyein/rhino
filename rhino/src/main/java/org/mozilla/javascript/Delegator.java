@@ -257,6 +257,11 @@ public class Delegator implements Function, SymbolScriptable {
         return ((Function) getDelegee()).call(cx, scope, thisObj, args);
     }
 
+    @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+        return null;
+    }
+
     /**
      * Note that if the <code>delegee</code> is <code>null</code>, this method creates a new
      * instance of the Delegator itself rather than forwarding the call to the <code>delegee</code>
