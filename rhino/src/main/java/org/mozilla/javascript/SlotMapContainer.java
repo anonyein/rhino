@@ -66,11 +66,11 @@ public class SlotMapContainer implements SlotMap {
 
     protected SlotMap map;
 
-    SlotMapContainer() {
+    public SlotMapContainer() {
         this(DEFAULT_SIZE);
     }
 
-    SlotMapContainer(int initialSize) {
+    public SlotMapContainer(int initialSize) {
         if (initialSize == 0) {
             map = EMPTY_SLOT_MAP;
         } else if (initialSize > LARGE_HASH_SIZE) {
