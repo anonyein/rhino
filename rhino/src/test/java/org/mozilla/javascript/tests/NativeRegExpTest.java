@@ -9,6 +9,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.testutils.Utils;
 
 public class NativeRegExpTest {
 
@@ -417,6 +418,30 @@ public class NativeRegExpTest {
                         + "res = res + '-' + result[2];\n"
                         + "res;";
         Utils.assertWithAllModes_ES6("3-a-a-a", script);
+    }
+
+    @Test
+    public void execStickySymbol() throws Exception {
+        final String script =
+                "var regex = /[abc]/y;\n"
+                        + "var res = regex.exec('ab-c') + '-' + regex.lastIndex + '-'\n"
+                        + "res += regex.exec('ab-c') + '-' + regex.lastIndex + '-'\n"
+                        + "res += regex.exec('ab-c') + '-' + regex.lastIndex\n"
+                        + "res;";
+
+        Utils.assertWithAllModes_ES6("a-1-b-2-null-0", script);
+    }
+
+    @Test
+    public void exeGlobalStickySymbol() throws Exception {
+        final String script =
+                "var regex = /[abc]/gy;\n"
+                        + "var res = regex.exec('ab-c') + '-' + regex.lastIndex + '-'\n"
+                        + "res += regex.exec('ab-c') + '-' + regex.lastIndex + '-'\n"
+                        + "res += regex.exec('ab-c') + '-' + regex.lastIndex\n"
+                        + "res;";
+
+        Utils.assertWithAllModes_ES6("a-1-b-2-null-0", script);
     }
 
     /**
