@@ -4549,13 +4549,38 @@ public class ScriptRuntime {
 
     /**
      * @deprecated Use {@link #createFunctionActivation(NativeFunction, Context, Scriptable,
-     *     Object[], boolean, boolean, Scriptable)} instead
+     *     Object[], boolean, boolean, boolean, Scriptable)} instead
      */
     @Deprecated
     public static Scriptable createFunctionActivation(
             NativeFunction funObj, Scriptable scope, Object[] args, boolean isStrict) {
         return new NativeCall(
-                funObj, Context.getCurrentContext(), scope, args, false, isStrict, false, null);
+                funObj,
+                Context.getCurrentContext(),
+                scope,
+                args,
+                false,
+                isStrict,
+                false,
+                true,
+                null);
+    }
+
+    /**
+     * @deprecated Use {@link #createFunctionActivation(NativeFunction, Context, Scriptable,
+     *     Object[], boolean, boolean, boolean, Scriptable)} instead
+     */
+    @Deprecated
+    public static Scriptable createFunctionActivation(
+            NativeFunction funObj,
+            Context cx,
+            Scriptable scope,
+            Object[] args,
+            boolean isStrict,
+            boolean argsHasRest,
+            Scriptable homeObject) {
+        return new NativeCall(
+                funObj, cx, scope, args, false, isStrict, argsHasRest, true, homeObject);
     }
 
     public static Scriptable createFunctionActivation(
@@ -4565,19 +4590,54 @@ public class ScriptRuntime {
             Object[] args,
             boolean isStrict,
             boolean argsHasRest,
+            boolean requiresArgumentObject,
             Scriptable homeObject) {
-        return new NativeCall(funObj, cx, scope, args, false, isStrict, argsHasRest, homeObject);
+        return new NativeCall(
+                funObj,
+                cx,
+                scope,
+                args,
+                false,
+                isStrict,
+                argsHasRest,
+                requiresArgumentObject,
+                homeObject);
     }
 
     /**
      * @deprecated Use {@link #createArrowFunctionActivation(NativeFunction, Context, Scriptable,
-     *     Object[], boolean, boolean, Scriptable)} instead
+     *     Object[], boolean, boolean, boolean, Scriptable)} instead
      */
     @Deprecated
     public static Scriptable createArrowFunctionActivation(
             NativeFunction funObj, Scriptable scope, Object[] args, boolean isStrict) {
         return new NativeCall(
-                funObj, Context.getCurrentContext(), scope, args, true, isStrict, false, null);
+                funObj,
+                Context.getCurrentContext(),
+                scope,
+                args,
+                true,
+                isStrict,
+                false,
+                true,
+                null);
+    }
+
+    /**
+     * @deprecated Use {@link #createArrowFunctionActivation(NativeFunction, Context, Scriptable,
+     *     Object[], boolean, boolean, boolean, Scriptable)} instead
+     */
+    @Deprecated
+    public static Scriptable createArrowFunctionActivation(
+            NativeFunction funObj,
+            Context cx,
+            Scriptable scope,
+            Object[] args,
+            boolean isStrict,
+            boolean argsHasRest,
+            Scriptable homeObject) {
+        return new NativeCall(
+                funObj, cx, scope, args, true, isStrict, argsHasRest, true, homeObject);
     }
 
     public static Scriptable createArrowFunctionActivation(
@@ -4587,8 +4647,18 @@ public class ScriptRuntime {
             Object[] args,
             boolean isStrict,
             boolean argsHasRest,
+            boolean requiresArgumentObject,
             Scriptable homeObject) {
-        return new NativeCall(funObj, cx, scope, args, true, isStrict, argsHasRest, homeObject);
+        return new NativeCall(
+                funObj,
+                cx,
+                scope,
+                args,
+                true,
+                isStrict,
+                argsHasRest,
+                requiresArgumentObject,
+                homeObject);
     }
 
     public static void enterActivationFunction(Context cx, Scriptable scope) {
