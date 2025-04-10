@@ -697,6 +697,7 @@ public class Parser {
         // that begins with a Directive Prologue that contains a Use Strict Directive.
         boolean inDirectivePrologue = true;
         boolean savedStrictMode = inUseStrictDirective;
+        inUseStrictDirective = false;
 
         pn.setLineColumnNumber(lineNumber(), columnNumber());
         try {
