@@ -16,6 +16,7 @@ import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.ImporterTopLevel;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 public class Bug421071Test {
     private ContextFactory factory;
@@ -63,16 +64,8 @@ public class Bug421071Test {
         thread.join();
     }
 
-    static class DynamicScopeContextFactory extends ContextFactory {
-        @Override
-        public boolean hasFeature(Context cx, int featureIndex) {
-            if (featureIndex == Context.FEATURE_DYNAMIC_SCOPE) return true;
-            return super.hasFeature(cx, featureIndex);
-        }
-    }
-
     private TopLevelScope createGlobalScope() {
-        factory = new DynamicScopeContextFactory();
+        factory = Utils.contextFactoryWithFeatures(Context.FEATURE_DYNAMIC_SCOPE);
 
         try (Context context = factory.enterContext()) {
             // noinspection deprecation

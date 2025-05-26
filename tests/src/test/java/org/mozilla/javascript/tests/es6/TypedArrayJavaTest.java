@@ -5,7 +5,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 /** Test for TypedArrays. */
 public class TypedArrayJavaTest {
@@ -22,7 +22,9 @@ public class TypedArrayJavaTest {
         allTypes(script, "1,2");
     }
 
-    /** @throws Exception if test failed */
+    /**
+     * @throws Exception if test failed
+     */
     @Test
     public void subarrayFromSubarray() throws Exception {
         subarrayFromSubarray(0, 7, 0, 6, "1,2,3,4,5,6,7 - 1,2,3,4,5,6");
@@ -110,7 +112,7 @@ public class TypedArrayJavaTest {
             "Uint8ClampedArray"
         };
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     ScriptableObject scope = cx.initStandardObjects();

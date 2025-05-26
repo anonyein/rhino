@@ -69,7 +69,7 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
      * and so on
      */
     protected AstNode inlineComment;
-    private static Map<Integer, String> operatorNames = new HashMap<>();
+    private static final Map<Integer, String> operatorNames = new HashMap<>();
 
     private static final int MAX_INDENT = 42;
     private static final String[] INDENTATIONS = new String[MAX_INDENT + 1];
@@ -83,6 +83,7 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
         operatorNames.put(Token.COLON, ":");
         operatorNames.put(Token.OR, "||");
         operatorNames.put(Token.NULLISH_COALESCING, "??");
+        operatorNames.put(Token.QUESTION_DOT, "?.");
         operatorNames.put(Token.AND, "&&");
         operatorNames.put(Token.INC, "++");
         operatorNames.put(Token.DEC, "--");
@@ -125,6 +126,7 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
         operatorNames.put(Token.ASSIGN_MOD, "%=");
         operatorNames.put(Token.ASSIGN_BITXOR, "^=");
         operatorNames.put(Token.ASSIGN_EXP, "**=");
+        operatorNames.put(Token.ASSIGN_NULLISH, "??=");
         operatorNames.put(Token.VOID, "void");
 
         StringBuilder sb = new StringBuilder();
@@ -295,8 +297,6 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
      * implementations may assume that the AST node is error-free, since it is intended to be
      * invoked only at runtime after a successful parse.
      *
-     * <p>
-     *
      * @param depth the current recursion depth, typically beginning at 0 when called on the root
      *     node.
      */
@@ -349,8 +349,6 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
      * decided by each child node. Normally child nodes will try to visit their children in lexical
      * order, but there may be exceptions to this rule.
      *
-     * <p>
-     *
      * @param visitor the object to call with this node and its children
      */
     public abstract void visit(NodeVisitor visitor);
@@ -373,6 +371,8 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
             case Token.ASSIGN_RSH:
             case Token.ASSIGN_SUB:
             case Token.ASSIGN_URSH:
+            case Token.ASSIGN_EXP:
+            case Token.ASSIGN_NULLISH:
             case Token.BLOCK:
             case Token.BREAK:
             case Token.CALL:
@@ -465,7 +465,9 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
         }
     }
 
-    /** @see Kit#codeBug */
+    /**
+     * @see Kit#codeBug
+     */
     public static RuntimeException codeBug() throws RuntimeException {
         throw Kit.codeBug();
     }
@@ -519,7 +521,7 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
      * @param other another node
      * @return -1 if this node's start position is less than {@code other}'s start position. If
      *     tied, -1 if this node's length is less than {@code other}'s length. If the lengths are
-     *     equal, sorts abitrarily on hashcode unless the nodes are the same per {@link #equals}.
+     *     equal, sorts arbitrarily on hashcode unless the nodes are the same per {@link #equals}.
      */
     @Override
     public int compareTo(AstNode other) {
@@ -578,6 +580,8 @@ public abstract class AstNode extends Node implements Comparable<AstNode> {
                 buffer.append(" ").append(((Name) node).getIdentifier());
             } else if (tt == Token.STRING) {
                 buffer.append(" ").append(((StringLiteral) node).getValue(true));
+            } else if (tt == Token.FUNCTION) {
+                buffer.append(" functionType=").append(((FunctionNode) node).getFunctionType());
             }
             buffer.append("\n");
             return true; // process kids

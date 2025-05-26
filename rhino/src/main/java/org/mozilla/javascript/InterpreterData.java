@@ -46,6 +46,7 @@ final class InterpreterData implements Serializable, DebuggableScript {
     String itsName;
     String itsSourceFile;
     boolean itsNeedsActivation;
+    boolean itsRequiresArgumentObject;
     int itsFunctionType;
 
     String[] itsStringTable;
@@ -69,6 +70,7 @@ final class InterpreterData implements Serializable, DebuggableScript {
     boolean[] argIsConst;
     int argCount;
     boolean argsHasRest;
+    boolean argsHasDefaults;
 
     int itsMaxCalleeArgs;
 
@@ -93,9 +95,6 @@ final class InterpreterData implements Serializable, DebuggableScript {
     boolean evalScriptFlag; // true if script corresponds to eval() code
 
     private int icodeHashCode = 0;
-
-    /** true if the function has been declared like "var foo = function() {...}" */
-    boolean declaredAsVar;
 
     /** true if the function has been declared like "!function() {}". */
     boolean declaredAsFunctionExpression;

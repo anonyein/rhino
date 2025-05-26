@@ -120,6 +120,12 @@ final class Arguments extends IdScriptableObject {
             return false;
         }
         NativeFunction f = activation.function;
+
+        // Check if default arguments are present
+        if (f == null || f.hasDefaultParameters()) {
+            return false;
+        }
+
         int definedCount = f.getParamCount();
         if (index < definedCount) {
             // Check if argument is not hidden by later argument with the same
@@ -353,33 +359,34 @@ final class Arguments extends IdScriptableObject {
     }
 
     @Override
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object id, ScriptableObject desc, boolean checkValid) {
         super.defineOwnProperty(cx, id, desc, checkValid);
         if (ScriptRuntime.isSymbol(id)) {
-            return;
+            return true;
         }
 
         double d = ScriptRuntime.toNumber(id);
         int index = (int) d;
-        if (d != index) return;
+        if (d != index) return true;
 
         Object value = arg(index);
-        if (value == NOT_FOUND) return;
+        if (value == NOT_FOUND) return true;
 
         if (isAccessorDescriptor(desc)) {
             removeArg(index);
-            return;
+            return true;
         }
 
         Object newValue = getProperty(desc, "value");
-        if (newValue == NOT_FOUND) return;
+        if (newValue == NOT_FOUND) return true;
 
         replaceArg(index, newValue);
 
         if (isFalse(getProperty(desc, "writable"))) {
             removeArg(index);
         }
+        return true;
     }
 
     // ECMAScript2015
@@ -411,7 +418,6 @@ final class Arguments extends IdScriptableObject {
 
         ThrowTypeError(String propertyName) {
             this.propertyName = propertyName;
-            super.setInstanceIdAttributes(BaseFunction.Id_name, PERMANENT | READONLY | DONTENUM);
         }
 
         @Override

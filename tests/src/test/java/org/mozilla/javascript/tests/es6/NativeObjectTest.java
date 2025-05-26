@@ -15,7 +15,7 @@ import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 /** Test for NativeObject. */
 public class NativeObjectTest {
@@ -368,7 +368,7 @@ public class NativeObjectTest {
 
         String[] prefixes = {"", "'use strict;'\n"};
         for (final String prefix : prefixes) {
-            Utils.runWithAllOptimizationLevels(
+            Utils.runWithAllModes(
                     cx -> {
                         cx.setLanguageVersion(Context.VERSION_ES6);
                         ScriptableObject scope = cx.initStandardObjects();
@@ -386,11 +386,13 @@ public class NativeObjectTest {
     private static void evaluateAndAssert(final String script, final Object expected) {
         String[] prefixes = {"", "'use strict;'\n"};
         for (final String prefix : prefixes) {
-            Utils.assertWithAllOptimizationLevelsES6(expected, prefix + script);
+            Utils.assertWithAllModes_ES6(expected, prefix + script);
         }
     }
 
-    /** @throws Exception if the test fails */
+    /**
+     * @throws Exception if the test fails
+     */
     @Test
     public void definePropertyUsingConsString() throws Exception {
         final String script =
@@ -405,7 +407,7 @@ public class NativeObjectTest {
                         + "  var p = new f();\n"
                         + "  log = log + ' / ' + (p instanceof f);";
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     ScriptableObject scope = cx.initStandardObjects();

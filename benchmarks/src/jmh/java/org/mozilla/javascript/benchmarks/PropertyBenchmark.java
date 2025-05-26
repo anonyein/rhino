@@ -24,10 +24,13 @@ public class PropertyBenchmark {
 
         Object object;
 
+        @Param({"false", "true"})
+        public boolean interpreted;
+
         @Setup(Level.Trial)
         public void setup() throws IOException {
             cx = Context.enter();
-            cx.setOptimizationLevel(9);
+            cx.setInterpretedMode(interpreted);
             cx.setLanguageVersion(Context.VERSION_ES6);
             scope = cx.initStandardObjects();
 

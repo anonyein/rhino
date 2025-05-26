@@ -8,6 +8,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Script;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Test for {@link Context#decompileScript(Script, int)}.
@@ -25,7 +26,7 @@ public class DecompileTest {
     @Test
     public void newObject0Arg() {
         final String source = "var x = new Date().getTime();";
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Script script = cx.compileString(source, "my script", 0, null);
                     Assert.assertEquals(source, cx.decompileScript(script, 4).trim());
@@ -36,7 +37,7 @@ public class DecompileTest {
     @Test
     public void bigInt() {
         final String source = "var x = 123n;";
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Script script = cx.compileString(source, "my script", 0, null);
@@ -48,7 +49,7 @@ public class DecompileTest {
     @Test
     public void templateLiteral() {
         final String source = "var x = `test${1}`;";
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Script script = cx.compileString(source, "my script", 0, null);
@@ -60,7 +61,7 @@ public class DecompileTest {
     @Test
     public void taggedTemplateLiteral() {
         final String source = "var x = (() => { } )`test${2}\\unicode`;";
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Script script = cx.compileString(source, "my script", 0, null);

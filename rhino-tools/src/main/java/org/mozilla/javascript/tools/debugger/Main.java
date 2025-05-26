@@ -6,13 +6,17 @@
 
 package org.mozilla.javascript.tools.debugger;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.URI;
+import java.util.List;
 import javax.swing.JFrame;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Kit;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.commonjs.module.ModuleScope;
 import org.mozilla.javascript.tools.shell.Global;
 
 /**
@@ -163,20 +167,29 @@ public class Main {
         System.setOut(main.getOut());
         System.setErr(main.getErr());
 
-        Global global = org.mozilla.javascript.tools.shell.Main.getGlobal();
-        global.setIn(main.getIn());
-        global.setOut(main.getOut());
-        global.setErr(main.getErr());
-
         main.attachTo(org.mozilla.javascript.tools.shell.Main.shellContextFactory);
+        try (Context cx = Context.enter()) {
+            cx.setLanguageVersion(Context.VERSION_ES6);
 
-        main.setScope(global);
+            Global global = org.mozilla.javascript.tools.shell.Main.getGlobal();
+            global.init(cx);
+            global.setIn(main.getIn());
+            global.setOut(main.getOut());
+            global.setErr(main.getErr());
 
-        main.pack();
-        main.setSize(600, 460);
-        main.setVisible(true);
+            global.installRequire(cx, List.of(), false);
 
-        org.mozilla.javascript.tools.shell.Main.exec(args);
+            URI uri = new File(System.getProperty("user.dir")).toURI();
+            ModuleScope scope = new ModuleScope(global, uri, null);
+
+            main.setScope(scope);
+
+            main.pack();
+            main.setSize(600, 460);
+            main.setVisible(true);
+
+            org.mozilla.javascript.tools.shell.Main.exec(args);
+        }
     }
 
     /**
@@ -242,35 +255,47 @@ public class Main {
 
     // Deprecated methods
 
-    /** @deprecated Use {@link #setSize(int, int)} instead. */
+    /**
+     * @deprecated Use {@link #setSize(int, int)} instead.
+     */
     @Deprecated
     public void setSize(java.awt.Dimension dimension) {
         debugGui.setSize(dimension.width, dimension.height);
     }
 
-    /** @deprecated The method does nothing and is only present for compatibility. */
+    /**
+     * @deprecated The method does nothing and is only present for compatibility.
+     */
     @Deprecated
     public void setOptimizationLevel(int level) {}
 
-    /** @deprecated The method is only present for compatibility and should not be called. */
+    /**
+     * @deprecated The method is only present for compatibility and should not be called.
+     */
     @Deprecated
     public void contextEntered(Context cx) {
         throw new IllegalStateException();
     }
 
-    /** @deprecated The method is only present for compatibility and should not be called. */
+    /**
+     * @deprecated The method is only present for compatibility and should not be called.
+     */
     @Deprecated
     public void contextExited(Context cx) {
         throw new IllegalStateException();
     }
 
-    /** @deprecated The method is only present for compatibility and should not be called. */
+    /**
+     * @deprecated The method is only present for compatibility and should not be called.
+     */
     @Deprecated
     public void contextCreated(Context cx) {
         throw new IllegalStateException();
     }
 
-    /** @deprecated The method is only present for compatibility and should not be called. */
+    /**
+     * @deprecated The method is only present for compatibility and should not be called.
+     */
     @Deprecated
     public void contextReleased(Context cx) {
         throw new IllegalStateException();

@@ -33,8 +33,12 @@ public final class NativeCall extends IdScriptableObject {
             Object[] args,
             boolean isArrow,
             boolean isStrict,
-            boolean argsHasRest) {
+            boolean argsHasRest,
+            boolean requiresArgumentObject,
+            Scriptable homeObject) {
         this.function = function;
+        this.homeObject = homeObject;
+        this.isArrow = isArrow;
 
         setParentScope(scope);
         // leave prototype null
@@ -73,11 +77,13 @@ public final class NativeCall extends IdScriptableObject {
             }
         }
 
-        // initialize "arguments" property but only if it was not overridden by
-        // the parameter with the same name
-        if (!super.has("arguments", this) && !isArrow) {
-            arguments = new Arguments(this);
-            defineProperty("arguments", arguments, PERMANENT);
+        if (requiresArgumentObject) {
+            // initialize "arguments" property but only if it was not overridden by
+            // the parameter with the same name
+            if (!super.has("arguments", this) && !isArrow) {
+                arguments = new Arguments(this);
+                defineProperty("arguments", arguments, PERMANENT);
+            }
         }
 
         if (paramAndVarCount != 0) {
@@ -143,12 +149,18 @@ public final class NativeCall extends IdScriptableObject {
         }
     }
 
+    public Scriptable getHomeObject() {
+        return homeObject;
+    }
+
     private static final int Id_constructor = 1, MAX_PROTOTYPE_ID = 1;
 
     NativeFunction function;
     Object[] originalArgs;
     boolean isStrict;
     private Arguments arguments;
+    boolean isArrow;
+    private Scriptable homeObject;
 
     transient NativeCall parentActivationCall;
 }

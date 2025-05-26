@@ -25,9 +25,9 @@ import java.util.EnumMap;
  *
  * <p>Calling {@link org.mozilla.javascript.Context#initStandardObjects()} with an instance of this
  * class as argument will automatically cache built-in classes after initialization. For other
- * setups involving top-level scopes that inherit global properties from their proptotypes (e.g.
- * with dynamic scopes) embeddings should explicitly call {@link #cacheBuiltins(Scriptable,
- * boolean)} to initialize the class cache for each top-level scope.
+ * setups involving top-level scopes that inherit global properties from their prototypes (e.g. with
+ * dynamic scopes) embeddings should explicitly call {@link #cacheBuiltins(Scriptable, boolean)} to
+ * initialize the class cache for each top-level scope.
  */
 public class TopLevel extends IdScriptableObject {
 
@@ -227,7 +227,8 @@ public class TopLevel extends IdScriptableObject {
 
     /**
      * Get the cached native error constructor from this scope with the given <code>type</code>.
-     * Returns null if {@link #cacheBuiltins()} has not been called on this object.
+     * Returns null if {@link #cacheBuiltins(Scriptable, boolean)} has not been called on this
+     * object.
      *
      * @param type the native error type
      * @return the native error constructor

@@ -27,11 +27,15 @@ final class MemberBox implements Serializable {
 
     private transient Member memberObject;
     transient Class<?>[] argTypes;
+    transient boolean[] argNullability;
     transient boolean vararg;
 
     transient Function asGetterFunction;
     transient Function asSetterFunction;
     transient Object delegateTo;
+
+    private static final NullabilityDetector nullDetector =
+            ScriptRuntime.loadOneServiceImplementation(NullabilityDetector.class);
 
     MemberBox(Method method) {
         init(method);
@@ -44,12 +48,20 @@ final class MemberBox implements Serializable {
     private void init(Method method) {
         this.memberObject = method;
         this.argTypes = method.getParameterTypes();
+        this.argNullability =
+                nullDetector == null
+                        ? new boolean[method.getParameters().length]
+                        : nullDetector.getParameterNullability(method);
         this.vararg = method.isVarArgs();
     }
 
     private void init(Constructor<?> constructor) {
         this.memberObject = constructor;
         this.argTypes = constructor.getParameterTypes();
+        this.argNullability =
+                nullDetector == null
+                        ? new boolean[constructor.getParameters().length]
+                        : nullDetector.getParameterNullability(constructor);
         this.vararg = constructor.isVarArgs();
     }
 
@@ -114,6 +126,16 @@ final class MemberBox implements Serializable {
         return memberObject.toString();
     }
 
+    boolean isSameGetterFunction(Object function) {
+        var f = asGetterFunction == null ? Undefined.instance : asGetterFunction;
+        return ScriptRuntime.shallowEq(function, f);
+    }
+
+    boolean isSameSetterFunction(Object function) {
+        var f = asSetterFunction == null ? Undefined.instance : asSetterFunction;
+        return ScriptRuntime.shallowEq(function, f);
+    }
+
     /** Function returned by calls to __lookupGetter__ */
     Function asGetterFunction(final String name, final Scriptable scope) {
         // Note: scope is the scriptable this function is related to; therefore this function
@@ -174,7 +196,8 @@ final class MemberBox implements Serializable {
                                                     thisObj,
                                                     originalArgs[0],
                                                     FunctionObject.getTypeTag(
-                                                            nativeSetter.argTypes[0]))
+                                                            nativeSetter.argTypes[0]),
+                                                    nativeSetter.argNullability[0])
                                             : Undefined.instance;
                             if (nativeSetter.delegateTo == null) {
                                 setterThis = thisObj;

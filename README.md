@@ -50,17 +50,19 @@ JavaDoc for all the APIs:
 
 Rhino 1.7.15 and before were primarily used in a single JAR called "rhino.jar".
 
-Newer releases now organize the code using Java modules. There are four primary modules:
+Newer releases now organize the code using Java modules. There are four primary modules and one auxiliary module for Kotlin developers:
 
 * **rhino**: The primary codebase necessary and sufficient to run JavaScript code. Required by everything that uses Rhino. In releases *after* 1.7.15, this module does not contain the "tools" or the XML implementation.
 * **rhino-tools**: Contains the shell, debugger, and the "Global" object, which many tests and other Rhino-based tools use. Note that adding Global gives Rhino the ability to print to stdout, open files, and do other things that may be considered dangerous in a sensitive environment, so it only makes sense to include if you will use it.
 * **rhino-xml**: Adds the implementation of the E4X XML standard. Only required if you are using that.
 * **rhino-engine**: Adds the Rhino implementation of the standard Java *ScriptEngine* interface. Some projects use this to be able to switch between script execution engines, but for anything even moderately complex it is almost always easier and always more flexible to use Rhino's API directly.
+* **rhino-all**: This creates an "all-in-one" JAR that includes *rhino-runtime*, *rhino-tools*, and *rhino-xml*. This is what's used if you want to run Rhino using "java jar".
+
+* **rhino-kotlin**: Enhanced support for code written in Kotlin, [see the details.](./rhino-kotlin/README.md)
 
 The release contains the following other modules, which are used while building and 
 testing but which are not published to Maven Central:
 
-* **rhino-all**: This creates an "all-in-one" JAR that includes *rhino-runtime*, *rhino-tools*, and *rhino-xml*. This is what's used if you want to run Rhino using "java jar".
 * **tests**: The tests that depend on all of Rhino and also the external tests, including the Mozilla legacy test scripts and the test262 tests.
 * **benchmarks**: Runs benchmarks using JMH.
 * **examples**: Surprisingly, this contains example code.
@@ -69,9 +71,14 @@ testing but which are not published to Maven Central:
 
 ### Requirements
 
-Rhino requires Java 11 to build. It will (currently) build with Java versions up to at least 
-Java 21. However, not all tools work with Java 21, such as "spotless", so Java 11 is required for
-regular developers.
+Rhino requires Java 17 or higher to build. The "spotless" tool, which enforces code formatting, will not
+run on older Java versions and you will receive a warning. If in doubt, Java 21 works great.
+
+Rhino runs on Java 11 and higher. The build tools use the "--release" flag to ensure that only
+features from Java 11 are used in the product.
+
+The CI tools run the Rhino tests on Java 11, 17, and 21. Regardless of what version of Java you are
+building with, you can test on another Java version using the RHINO_TEST_JAVA_VERSION environment variable.
 
 ### How to Build
 
@@ -93,6 +100,33 @@ Alternately, you can build an all-in-one JAR and run that:
 You can also run the benchmarks:
 
     ./gradlew jmh
+
+When running the benchmarks you may find a couple of environment variables useful.
+* `BENCHMARKS` if set will limit the benchmarks run to those matching
+  the regular expression given.
+* `INTERPRETED` can be set to `true` or `false` to only run the
+  benchmarks in interpreted or compiled mode.
+* `PROFILERS` can be set to `cpu` or `alloc` to run the async profiler
+  for cpu time or memory allocations, or can be set to any other
+  string which will be passed to jmh as the value of the profilers
+  argument. This allows for things like running JFR as the profiler to
+  collect information on lock contention or other events.
+
+### Testing on other Java Versions
+
+It is a good idea to test major changes on Java 11 before assuming that they will pass the CI
+tests. To do this, set the environment variable RHINO_TEST_JAVA_VERSION to the version that you
+want to test. For example:
+
+    RHINO_TEST_JAVA_VERSION=11 ./gradlew check
+
+This will only work if Gradle can find a JDK of the appropriate version. You can troubleshoot
+this using the command:
+
+    ./gradlew -q javaToolchains
+
+Not all installers seem to put JDKs in the places where Gradle can find them. When in doubt,
+installatioons from [Adoptium](https://adoptium.net) seem to work on most platforms.
 
 ### Code Coverage
 
@@ -138,7 +172,7 @@ option to authorize the packages that your scripts shall use, for example:
 --add-opens java.desktop/javax.swing.table=ALL-UNNAMED
 ```
 
-This is not necessary just to build Rhino -- it may be necessary when embedding it
+This is not necessary just to build or test Rhino -- it may be necessary when embedding it
 depending on what your project does.
 
 ## Issues
@@ -163,6 +197,14 @@ if you can un-disable some tests.
 some time to get back to you.
 * Thank you for contributing!
 
+## Updating Test262 tests
+
+If you are adding new capabilities to Rhino, you may be making more test262 tests pass, which is
+a good thing. Please [see the instructions](./tests/testsrc/README.md) on how to update our test262 configuration.
+
+Because of differences between Java and JavaScript, when testing on newer Java versions, many
+Unicode-related test262 tests appear to pass, but they will fail on Java 11. Please ignore these!
+
 ### Code Formatting
 
 Code formatting was introduced in 2021. The "spotless" plugin will fail your
@@ -174,9 +216,7 @@ hundreds of lines of changes to, please try to put the reformatting changes
 alone into a single Git commit so that we can separate reformatting changes
 from more substantive changes.
 
-Currently, you must be building on Java 11 for Spotless to run. We recommend that you
-have that ready. (We have not been able to figure out a version of Spotless and the 
-Google formatting plugin that it uses that works on many Java versions.)
+Currently, you must be building on Java 17 or higher for Spotless to run.
 
 ## More Help
 

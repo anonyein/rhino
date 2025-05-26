@@ -7,7 +7,7 @@
 package org.mozilla.javascript.typedarrays;
 
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.IdFunctionObject;
+import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Undefined;
@@ -36,15 +36,27 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
         return CLASS_NAME;
     }
 
-    public static void init(Context cx, Scriptable scope, boolean sealed) {
-        NativeUint8Array a = new NativeUint8Array();
-        IdFunctionObject constructor = a.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed);
-        ScriptRuntimeES6.addSymbolSpecies(cx, scope, constructor);
-    }
+    public static Object init(Context cx, Scriptable scope, boolean sealed) {
+        LambdaConstructor constructor =
+                new LambdaConstructor(
+                        scope,
+                        CLASS_NAME,
+                        3,
+                        LambdaConstructor.CONSTRUCTOR_NEW,
+                        (Context lcx, Scriptable lscope, Object[] args) ->
+                                NativeTypedArrayView.js_constructor(
+                                        lcx, lscope, args, NativeUint8Array::new, 1));
+        constructor.setPrototypePropertyAttributes(DONTENUM | READONLY | PERMANENT);
+        NativeTypedArrayView.init(cx, scope, constructor, NativeUint8Array::realThis);
+        constructor.defineProperty("BYTES_PER_ELEMENT", 1, DONTENUM | READONLY | PERMANENT);
+        constructor.definePrototypeProperty(
+                "BYTES_PER_ELEMENT", 1, DONTENUM | READONLY | PERMANENT);
 
-    @Override
-    protected NativeUint8Array construct(NativeArrayBuffer ab, int off, int len) {
-        return new NativeUint8Array(ab, off, len);
+        ScriptRuntimeES6.addSymbolSpecies(cx, scope, constructor);
+        if (sealed) {
+            constructor.sealObject();
+        }
+        return constructor;
     }
 
     @Override
@@ -52,9 +64,8 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
         return 1;
     }
 
-    @Override
-    protected NativeUint8Array realThis(Scriptable thisObj, IdFunctionObject f) {
-        return ensureType(thisObj, NativeUint8Array.class, f);
+    private static NativeUint8Array realThis(Scriptable thisObj) {
+        return LambdaConstructor.convertThisObject(thisObj, NativeUint8Array.class);
     }
 
     @Override
@@ -77,17 +88,13 @@ public class NativeUint8Array extends NativeTypedArrayView<Integer> {
 
     @Override
     public Integer get(int i) {
-        if (checkIndex(i)) {
-            throw new IndexOutOfBoundsException();
-        }
+        ensureIndex(i);
         return (Integer) js_get(i);
     }
 
     @Override
     public Integer set(int i, Integer aByte) {
-        if (checkIndex(i)) {
-            throw new IndexOutOfBoundsException();
-        }
+        ensureIndex(i);
         return (Integer) js_set(i, aByte);
     }
 }

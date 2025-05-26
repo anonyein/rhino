@@ -22,8 +22,6 @@ import org.mozilla.javascript.ErrorReporter;
  * within a single line, for readability, but the client is free to use the AST to determine the
  * affected node(s) from the start position and change the error or warning's display bounds.
  *
- * <p>
- *
  * @author Steve Yegge
  */
 public interface IdeErrorReporter extends ErrorReporter {
@@ -35,7 +33,7 @@ public interface IdeErrorReporter extends ErrorReporter {
      *
      * @param message a {@code String} describing the warning
      * @param sourceName a {@code String} describing the JavaScript source where the warning
-     *     occured; typically a filename or URL
+     *     occurred; typically a filename or URL
      * @param offset the warning's 0-indexed char position in the input stream
      * @param length the length of the region contributing to the warning
      */
@@ -50,10 +48,8 @@ public interface IdeErrorReporter extends ErrorReporter {
      * rather than terminating the translation. It will not execute a script that had errors,
      * however.
      *
-     * <p>
-     *
      * @param message a String describing the error
-     * @param sourceName a String describing the JavaScript source where the error occured;
+     * @param sourceName a String describing the JavaScript source where the error occurred;
      *     typically a filename or URL
      * @param offset 0-indexed char position of the error in the input stream
      * @param length the length of the region contributing to the error

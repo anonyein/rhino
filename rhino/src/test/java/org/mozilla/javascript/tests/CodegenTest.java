@@ -11,6 +11,7 @@ import org.junit.Test;
 import org.mozilla.javascript.NativeFunction;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Test for falling back to the interpreter if generated code is too large.
@@ -28,11 +29,11 @@ public class CodegenTest {
             scriptSource.append("a = a + 1;");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
-                    if (_cx.getOptimizationLevel() > -1) {
+                    if (!_cx.isInterpretedMode()) {
                         Assert.assertTrue(
                                 script.getClass().getName(),
                                 script.getClass()
@@ -47,7 +48,7 @@ public class CodegenTest {
             scriptSource.append("a = a + 1;");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
@@ -59,7 +60,7 @@ public class CodegenTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     try {
                         Script script =
@@ -93,7 +94,7 @@ public class CodegenTest {
             scriptSource.append("try { a = a + 1; } catch(e) { alert(e); }");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     final Scriptable scope = _cx.initStandardObjects();
                     Assert.assertEquals(
@@ -115,11 +116,11 @@ public class CodegenTest {
             scriptSource.append("var a" + i + ";");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
-                    if (_cx.getOptimizationLevel() > -1) {
+                    if (!_cx.isInterpretedMode()) {
                         Assert.assertTrue(
                                 script.getClass().getName(),
                                 script.getClass()
@@ -134,7 +135,7 @@ public class CodegenTest {
             scriptSource.append("var a" + i + ";");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
@@ -149,7 +150,7 @@ public class CodegenTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     try {
                         Script script =
@@ -184,11 +185,11 @@ public class CodegenTest {
         }
         scriptSource.append("return 'done'; }");
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
-                    if (_cx.getOptimizationLevel() > -1) {
+                    if (!_cx.isInterpretedMode()) {
                         Assert.assertTrue(
                                 script.getClass().getName(),
                                 script.getClass()
@@ -206,7 +207,7 @@ public class CodegenTest {
         }
         scriptSource.append("return 'done'; }");
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
@@ -221,7 +222,7 @@ public class CodegenTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     try {
                         Script script =
@@ -255,11 +256,11 @@ public class CodegenTest {
             scriptSource.append("function foo" + i + "() { return 7; }\n");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
-                    if (_cx.getOptimizationLevel() > -1) {
+                    if (!_cx.isInterpretedMode()) {
                         Assert.assertTrue(
                                 script.getClass().getName(),
                                 script.getClass()
@@ -274,7 +275,7 @@ public class CodegenTest {
             scriptSource.append("function foo" + i + "() { return 7; }\n");
         }
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     Script script =
                             _cx.compileString(scriptSource.toString(), "test-source", 1, null);
@@ -289,7 +290,7 @@ public class CodegenTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 _cx -> {
                     try {
                         Script script =

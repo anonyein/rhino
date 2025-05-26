@@ -11,7 +11,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.RhinoException;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 import org.mozilla.javascript.tools.shell.Global;
 
 public class BackwardUseStrict {
@@ -42,7 +42,7 @@ public class BackwardUseStrict {
 
     @Test
     public void strictIgnored() {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_1_8);
                     try {
@@ -59,7 +59,7 @@ public class BackwardUseStrict {
 
     @Test
     public void strictHonored() {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     try {

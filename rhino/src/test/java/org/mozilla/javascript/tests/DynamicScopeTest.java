@@ -3,6 +3,7 @@ package org.mozilla.javascript.tests;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
+import org.junit.After;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
@@ -37,7 +38,6 @@ public class DynamicScopeTest {
         protected Context makeContext() {
             Context cx = super.makeContext();
             cx.setLanguageVersion(Context.VERSION_ES6);
-            cx.setOptimizationLevel(0);
             return cx;
         }
     }
@@ -46,6 +46,13 @@ public class DynamicScopeTest {
     private static class FreshContext extends Context {
         public FreshContext(ContextFactory contextFactory) {
             super(contextFactory);
+        }
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        while (Context.getCurrentContext() != null) {
+            Context.exit();
         }
     }
 

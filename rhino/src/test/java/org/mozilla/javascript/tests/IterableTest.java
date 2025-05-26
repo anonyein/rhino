@@ -15,6 +15,7 @@ import org.mozilla.javascript.SymbolKey;
 import org.mozilla.javascript.SymbolScriptable;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Tests for host objects implementing the iterable protocol.
@@ -93,7 +94,7 @@ public class IterableTest {
      */
     @Test
     public void forOfUsingNonSymbolScriptable() {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     ScriptableObject scope = cx.initStandardObjects();
@@ -110,8 +111,8 @@ public class IterableTest {
                                 null);
 
                     } catch (Throwable t) {
-                        assertEquals(t.getClass(), EcmaError.class);
-                        assertEquals(t.getMessage(), "TypeError: [object Object] is not iterable");
+                        assertEquals(EcmaError.class, t.getClass());
+                        assertEquals("TypeError: [object Object] is not iterable", t.getMessage());
                     }
 
                     return null;
@@ -127,7 +128,7 @@ public class IterableTest {
      */
     @Test
     public void forOfUsingNonIterable() {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     ScriptableObject scope = cx.initStandardObjects();
@@ -143,8 +144,8 @@ public class IterableTest {
                                 0,
                                 null);
                     } catch (Throwable t) {
-                        assertEquals(t.getClass(), EcmaError.class);
-                        assertEquals(t.getMessage(), "TypeError: [object Object] is not iterable");
+                        assertEquals(EcmaError.class, t.getClass());
+                        assertEquals("TypeError: [object Object] is not iterable", t.getMessage());
                     }
 
                     return null;
@@ -157,7 +158,7 @@ public class IterableTest {
      */
     @Test
     public void forOfUsingArrayIterator() {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     ScriptableObject scope = cx.initStandardObjects();
@@ -288,6 +289,9 @@ public class IterableTest {
 
         @Override
         public Object get(Symbol key, Scriptable start) {
+            if (SymbolKey.TO_PRIMITIVE == key) {
+                return null;
+            }
             throw new UnsupportedOperationException(
                     "Not supported yet."); // To change body of generated methods, choose Tools |
             // Templates.

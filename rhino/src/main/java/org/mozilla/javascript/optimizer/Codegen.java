@@ -177,10 +177,10 @@ public class Codegen implements Evaluator {
     private void transform(ScriptNode tree) {
         initOptFunctions_r(tree);
 
-        int optLevel = compilerEnv.getOptimizationLevel();
+        boolean optimizing = !compilerEnv.isInterpretedMode();
 
         Map<String, OptFunctionNode> possibleDirectCalls = null;
-        if (optLevel > 0) {
+        if (optimizing) {
             /*
              * Collect all of the contained functions into a hashtable
              * so that the call optimizer can access the class name & parameter
@@ -210,7 +210,7 @@ public class Codegen implements Evaluator {
         OptTransformer ot = new OptTransformer(possibleDirectCalls, directCallTargets);
         ot.transform(tree, compilerEnv);
 
-        if (optLevel > 0) {
+        if (optimizing) {
             new Optimizer().optimize(tree);
         }
     }
@@ -250,11 +250,7 @@ public class Codegen implements Evaluator {
         boolean hasFunctions = (scriptOrFnNodes.length > 1 || !hasScript);
         boolean isStrictMode = scriptOrFnNodes[0].isInStrictMode();
 
-        String sourceFile = null;
-        if (compilerEnv.isGenerateDebugInfo()) {
-            sourceFile = scriptOrFnNodes[0].getSourceName();
-        }
-
+        String sourceFile = scriptOrFnNodes[0].getSourceName();
         ClassFileWriter cfw = new ClassFileWriter(mainClassName, SUPER_CLASS_NAME, sourceFile);
         cfw.addField(ID_FIELD_NAME, "I", ACC_PRIVATE);
 
@@ -743,7 +739,9 @@ public class Codegen implements Evaluator {
         final int Do_getParamOrVarConst = 5;
         final int Do_isGeneratorFunction = 6;
         final int Do_hasRestParameter = 7;
-        final int SWITCH_COUNT = 8;
+        final int Do_hasDefaultParameters = 8;
+        final int Do_isStrict = 9;
+        final int SWITCH_COUNT = 10;
 
         for (int methodIndex = 0; methodIndex != SWITCH_COUNT; ++methodIndex) {
             if (methodIndex == Do_getRawSource && rawSource == null) {
@@ -789,6 +787,14 @@ public class Codegen implements Evaluator {
                 case Do_hasRestParameter:
                     methodLocals = 1; // Only this
                     cfw.startMethod("hasRestParameter", "()Z", ACC_PUBLIC);
+                    break;
+                case Do_hasDefaultParameters:
+                    methodLocals = 1; // Only this
+                    cfw.startMethod("hasDefaultParameters", "()Z", ACC_PUBLIC);
+                    break;
+                case Do_isStrict:
+                    methodLocals = 1; // Only this
+                    cfw.startMethod("isStrict", "()Z", ACC_PUBLIC);
                     break;
                 default:
                     throw Kit.codeBug();
@@ -934,6 +940,15 @@ public class Codegen implements Evaluator {
                         cfw.add(ByteCode.IRETURN);
                         break;
 
+                    case Do_hasDefaultParameters:
+                        if (n instanceof FunctionNode) {
+                            cfw.addPush(n.getDefaultParams() != null);
+                        } else {
+                            cfw.addPush(false);
+                        }
+                        cfw.add(ByteCode.IRETURN);
+                        break;
+
                     case Do_getRawSource:
                         // Push number raw source start and end
                         // to prepare for rawSource.substring(start, end)
@@ -945,6 +960,11 @@ public class Codegen implements Evaluator {
                                 "substring",
                                 "(II)Ljava/lang/String;");
                         cfw.add(ByteCode.ARETURN);
+                        break;
+
+                    case Do_isStrict:
+                        cfw.addPush(n.isInStrictMode() ? 1 : 0);
+                        cfw.add(ByteCode.IRETURN);
                         break;
 
                     default:

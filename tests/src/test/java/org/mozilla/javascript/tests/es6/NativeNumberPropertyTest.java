@@ -1,7 +1,7 @@
 package org.mozilla.javascript.tests.es6;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 public class NativeNumberPropertyTest {
 
@@ -15,7 +15,7 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  '' + func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6("undefined", code);
+        Utils.assertWithAllModes_ES6("undefined", code);
     }
 
     @Test
@@ -29,7 +29,7 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  '' + func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6(
+        Utils.assertWithAllModes_ES6(
                 "Cannot set property \"snippetText\" of -334918463 to \"abc\"", code);
     }
 
@@ -42,7 +42,7 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6("false true", code);
+        Utils.assertWithAllModes_ES6("false true", code);
     }
 
     @Test
@@ -55,7 +55,7 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6("false true", code);
+        Utils.assertWithAllModes_ES6("false true", code);
     }
 
     @Test
@@ -67,7 +67,7 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6("true false", code);
+        Utils.assertWithAllModes_ES6("true false", code);
     }
 
     @Test
@@ -80,6 +80,6 @@ public class NativeNumberPropertyTest {
                         + "try { "
                         + "  func(-334918463);"
                         + "} catch (e) { e.message }";
-        Utils.assertWithAllOptimizationLevelsES6("true false", code);
+        Utils.assertWithAllModes_ES6("true false", code);
     }
 }

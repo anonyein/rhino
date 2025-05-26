@@ -142,7 +142,9 @@ public class ImporterTopLevel extends TopLevel {
         return null;
     }
 
-    /** @deprecated Kept only for compatibility. */
+    /**
+     * @deprecated Kept only for compatibility.
+     */
     @Deprecated
     public void importPackage(Context cx, Scriptable thisObj, Object[] args, Function funObj) {
         js_importPackage(this, args);
@@ -217,7 +219,10 @@ public class ImporterTopLevel extends TopLevel {
         String s = cl.getClassObject().getName();
         String n = s.substring(s.lastIndexOf('.') + 1);
         Object val = scope.get(n, scope);
-        if (val != NOT_FOUND && val != cl) {
+        if (val != NOT_FOUND) {
+            if (val.equals(cl)) {
+                return; // do not redefine same class
+            }
             throw Context.reportRuntimeErrorById("msg.prop.defined", n);
         }
         // defineProperty(n, cl, DONTENUM);

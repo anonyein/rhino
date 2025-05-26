@@ -12,8 +12,11 @@ import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.StackStyle;
+import org.mozilla.javascript.testutils.Utils;
 
-/** @author Marc Guillemot */
+/**
+ * @author Marc Guillemot
+ */
 public class StackTraceTest {
 
     static final String LS = System.getProperty("line.separator");
@@ -117,7 +120,7 @@ public class StackTraceTest {
 
     private static void runWithExpectedStackTrace(
             final String _source, final String _expectedStackTrace) {
-        Utils.runWithOptimizationLevel(
+        Utils.runWithMode(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     try {
@@ -128,6 +131,6 @@ public class StackTraceTest {
                     }
                     throw new RuntimeException("Exception expected!");
                 },
-                -1);
+                true);
     }
 }

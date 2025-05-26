@@ -1,17 +1,14 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertTrue;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Test cases for ToNumber conversion applied to a String type.
@@ -91,10 +88,8 @@ public class ToNumberConversionsTest {
     public static Collection<Object[]> data() {
         List<Object[]> cases = new ArrayList<>();
 
-        for (int optLevel : Utils.DEFAULT_OPT_LEVELS) {
-            for (Object[] test : TESTS) {
-                cases.add(new Object[] {test[0], test[1], optLevel});
-            }
+        for (Object[] test : TESTS) {
+            cases.add(new Object[] {test[0], test[1]});
         }
 
         return cases;
@@ -106,56 +101,37 @@ public class ToNumberConversionsTest {
     @Parameterized.Parameter(1)
     public String source;
 
-    @Parameterized.Parameter(2)
-    public int optLevel;
-
     @SuppressWarnings("ConstantConditions")
     private boolean execute(Context cx, Scriptable scope, String script) {
         return (Boolean) cx.evaluateString(scope, script, "inline", 1, null);
     }
 
-    public Context cx;
-    public Scriptable scope;
-
-    @Before
-    public void setup() {
-        cx = Context.enter();
-        cx.setOptimizationLevel(optLevel);
-        cx.setLanguageVersion(Context.VERSION_ES6);
-        scope = cx.initSafeStandardObjects();
-    }
-
-    @After
-    public void tearDown() {
-        Context.exit();
-    }
-
     @Test
     public void cumberConstructor() {
         String script = String.format("%seq(Number(\"%s\"), %s)", PRELUDE, source, expected);
-        assertTrue(
-                "Number('" + source + "') doesn't produce " + expected, execute(cx, scope, script));
+        Utils.assertWithAllModes_ES6(
+                "Number('" + source + "') doesn't produce " + expected, true, script);
     }
 
     @Test
     public void coercion() {
         String script = String.format("%seq(+(\"%s\"), %s)", PRELUDE, source, expected);
-        assertTrue("+('" + source + "') doesn't produce " + expected, execute(cx, scope, script));
+        Utils.assertWithAllModes_ES6(
+                "+('" + source + "') doesn't produce " + expected, true, script);
     }
 
     @Test
     public void isNaN() {
         String script = String.format("%seq(isNaN(\"%s\"), isNaN(%s))", PRELUDE, source, expected);
-        assertTrue(
-                "isNaN('" + source + "') !== isNaN(" + expected + ")", execute(cx, scope, script));
+        Utils.assertWithAllModes_ES6(
+                "isNaN('" + source + "') !== isNaN(" + expected + ")", true, script);
     }
 
     @Test
     public void isFinite() {
         String script =
                 String.format("%seq(isFinite(\"%s\"), isFinite(%s))", PRELUDE, source, expected);
-        assertTrue(
-                "isFinite('" + source + "') !== isFinite(" + expected + ")",
-                execute(cx, scope, script));
+        Utils.assertWithAllModes_ES6(
+                "isFinite('" + source + "') !== isFinite(" + expected + ")", true, script);
     }
 }

@@ -26,24 +26,108 @@ public class ArrayLikeAbstractOperations {
         REDUCE_RIGHT,
     }
 
-    /** Implements the methods "every", "filter", "forEach", "map", and "some". */
+    public interface LengthAccessor {
+        public long getLength(Context cx, Scriptable o);
+    }
+
+    /**
+     * Implements the methods "every", "filter", "forEach", "map", and "some" without using an
+     * IdFunctionObject.
+     */
+    public static Object iterativeMethod(
+            Context cx,
+            IterativeOperation operation,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            LengthAccessor lengthAccessor) {
+        return iterativeMethod(cx, null, operation, scope, thisObj, args, lengthAccessor, true);
+    }
+
+    /**
+     * Implements the methods "every", "filter", "forEach", "map", and "some" using an
+     * IdFunctionObject.
+     */
     public static Object iterativeMethod(
             Context cx,
             IdFunctionObject fun,
             IterativeOperation operation,
             Scriptable scope,
             Scriptable thisObj,
-            Object[] args) {
+            Object[] args,
+            LengthAccessor lengthAccessor) {
+        return iterativeMethod(cx, fun, operation, scope, thisObj, args, lengthAccessor, false);
+    }
+
+    private static Object iterativeMethod(
+            Context cx,
+            IdFunctionObject fun,
+            IterativeOperation operation,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            LengthAccessor lengthAccessor,
+            boolean skipCoercibleCheck) {
         Scriptable o = ScriptRuntime.toObject(cx, scope, thisObj);
 
-        if (IterativeOperation.FIND == operation
-                || IterativeOperation.FIND_INDEX == operation
-                || IterativeOperation.FIND_LAST == operation
-                || IterativeOperation.FIND_LAST_INDEX == operation) {
-            requireObjectCoercible(cx, o, fun);
+        if (!skipCoercibleCheck) {
+            if (IterativeOperation.FIND == operation
+                    || IterativeOperation.FIND_INDEX == operation
+                    || IterativeOperation.FIND_LAST == operation
+                    || IterativeOperation.FIND_LAST_INDEX == operation) {
+                requireObjectCoercible(cx, o, fun);
+            }
         }
 
-        long length = getLengthProperty(cx, o);
+        long length = lengthAccessor.getLength(cx, o);
+        return coercibleIterativeMethod(cx, operation, scope, o, args, length);
+    }
+
+    public static Object iterativeMethod(
+            Context cx,
+            Object tag,
+            String name,
+            IterativeOperation operation,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            LengthAccessor lengthAccessor) {
+        return iterativeMethod(
+                cx, tag, name, operation, scope, thisObj, args, lengthAccessor, false);
+    }
+
+    private static Object iterativeMethod(
+            Context cx,
+            Object tag,
+            String name,
+            IterativeOperation operation,
+            Scriptable scope,
+            Scriptable thisObj,
+            Object[] args,
+            LengthAccessor lengthAccessor,
+            boolean skipCoercibleCheck) {
+        Scriptable o = ScriptRuntime.toObject(cx, scope, thisObj);
+
+        if (!skipCoercibleCheck) {
+            if (IterativeOperation.FIND == operation
+                    || IterativeOperation.FIND_INDEX == operation
+                    || IterativeOperation.FIND_LAST == operation
+                    || IterativeOperation.FIND_LAST_INDEX == operation) {
+                requireObjectCoercible(cx, o, tag, name);
+            }
+        }
+
+        long length = lengthAccessor.getLength(cx, o);
+        return coercibleIterativeMethod(cx, operation, scope, o, args, length);
+    }
+
+    public static Object coercibleIterativeMethod(
+            Context cx,
+            IterativeOperation operation,
+            Scriptable scope,
+            Scriptable o,
+            Object[] args,
+            long length) {
         if (operation == IterativeOperation.MAP && length > Integer.MAX_VALUE) {
             String msg = ScriptRuntime.getMessageById("msg.arraylength.bad");
             throw ScriptRuntime.rangeError(msg);
@@ -63,7 +147,7 @@ public class ArrayLikeAbstractOperations {
         Scriptable array = null;
         if (operation == IterativeOperation.FILTER || operation == IterativeOperation.MAP) {
             int resultLength = operation == IterativeOperation.MAP ? (int) length : 0;
-            array = cx.newArray(scope, resultLength);
+            array = arraySpeciesCreate(cx, scope, o, resultLength);
         }
         long j = 0;
         long start =
@@ -141,6 +225,28 @@ public class ArrayLikeAbstractOperations {
         }
     }
 
+    static Scriptable arraySpeciesCreate(Context cx, Scriptable scope, Scriptable o, int length) {
+        if (o instanceof NativeArray) {
+            Object c = ScriptableObject.getProperty(o, "constructor");
+            if (c instanceof Scriptable) {
+                c = ScriptableObject.getProperty((Scriptable) c, SymbolKey.SPECIES);
+                if (c == null || c == NOT_FOUND) {
+                    c = Undefined.instance;
+                }
+            }
+
+            if (!Undefined.isUndefined(c)) {
+                if (c instanceof Constructable) {
+                    return ((Constructable) c)
+                            .construct(cx, scope, new Object[] {Double.valueOf(length)});
+                } else {
+                    throw ScriptRuntime.typeErrorById("msg.ctor.not.found", o);
+                }
+            }
+        }
+        return cx.newArray(scope, length);
+    }
+
     static Function getCallbackArg(Context cx, Object callbackArg) {
         if (!(callbackArg instanceof Function)) {
             throw ScriptRuntime.notFunctionError(callbackArg);
@@ -166,6 +272,17 @@ public class ArrayLikeAbstractOperations {
     }
 
     static void defineElem(Context cx, Scriptable target, long index, Object value) {
+        if (!(target instanceof NativeArray && ((NativeArray) target).getDenseOnly())
+                && target instanceof ScriptableObject) {
+            var so = (ScriptableObject) target;
+            ScriptableObject desc = new NativeObject();
+            desc.defineProperty("value", value, 0);
+            desc.defineProperty("writable", Boolean.TRUE, 0);
+            desc.defineProperty("enumerable", Boolean.TRUE, 0);
+            desc.defineProperty("configurable", Boolean.TRUE, 0);
+            so.defineOwnProperty(cx, index, desc);
+            return;
+        }
         if (index > Integer.MAX_VALUE) {
             String id = Long.toString(index);
             target.put(id, target, value);
@@ -176,7 +293,7 @@ public class ArrayLikeAbstractOperations {
 
     // same as NativeArray::getElem, but without converting NOT_FOUND to undefined
     static Object getRawElem(Scriptable target, long index) {
-        if (index > Integer.MAX_VALUE) {
+        if (index < 0 || index > Integer.MAX_VALUE) {
             return ScriptableObject.getProperty(target, Long.toString(index));
         }
         return ScriptableObject.getProperty(target, (int) index);
@@ -208,6 +325,17 @@ public class ArrayLikeAbstractOperations {
         Scriptable o = ScriptRuntime.toObject(cx, scope, thisObj);
 
         long length = getLengthProperty(cx, o);
+        return reduceMethodWithLength(cx, operation, scope, o, args, length);
+    }
+
+    public static Object reduceMethodWithLength(
+            Context cx,
+            ReduceOperation operation,
+            Scriptable scope,
+            Scriptable o,
+            Object[] args,
+            long length) {
+
         Object callbackArg = args.length > 0 ? args[0] : Undefined.instance;
         if (callbackArg == null || !(callbackArg instanceof Function)) {
             throw ScriptRuntime.notFunctionError(callbackArg);
@@ -224,7 +352,7 @@ public class ArrayLikeAbstractOperations {
                 continue;
             }
             if (value == NOT_FOUND) {
-                // no initial value passed, use first element found as inital value
+                // no initial value passed, use first element found as initial value
                 value = elem;
             } else {
                 Object[] innerArgs = {value, elem, index, o};

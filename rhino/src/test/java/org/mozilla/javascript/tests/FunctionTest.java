@@ -5,10 +5,8 @@
 /** */
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
-import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Unit tests for Function.
@@ -24,7 +22,7 @@ public class FunctionTest {
      */
     @Test
     public void functionWithSlashSlash() {
-        assertEvaluates(true, "new Function('return true//;').call()");
+        Utils.assertWithAllModes(true, "new Function('return true//;').call()");
     }
 
     @Test
@@ -39,7 +37,7 @@ public class FunctionTest {
                         + "foo();\n"
                         + "result;";
 
-        assertEvaluates("-outer abc = 1-inner abc = function", script);
+        Utils.assertWithAllModes("-outer abc = 1-inner abc = function", script);
     }
 
     @Test
@@ -59,7 +57,7 @@ public class FunctionTest {
                         + "b();\n"
                         + "result;";
 
-        assertEvaluates("ab", script);
+        Utils.assertWithAllModes("ab", script);
     }
 
     @Test
@@ -76,7 +74,7 @@ public class FunctionTest {
                         + "a();\n"
                         + "result;";
 
-        assertEvaluates("a", script);
+        Utils.assertWithAllModes("a", script);
     }
 
     @Test
@@ -92,7 +90,7 @@ public class FunctionTest {
                         + "func();\n"
                         + "result;";
 
-        assertEvaluates("functionfunc(){result+=norm(func);}outer", script);
+        Utils.assertWithAllModes("functionfunc(){result+=norm(func);}outer", script);
     }
 
     @Test
@@ -137,16 +135,6 @@ public class FunctionTest {
                         + "result;";
 
         // assertEvaluates("f1f2f3!f4f5!f6!f7!f8f10f11f12!f10f11f12f13", script);
-        assertEvaluates("f1f2f3!f4f5!f6!f7!f8f10f11f12f11f12f13", script);
-    }
-
-    private static void assertEvaluates(final Object expected, final String source) {
-        Utils.runWithAllOptimizationLevels(
-                cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
-                    final Object rep = cx.evaluateString(scope, source, "test.js", 0, null);
-                    assertEquals(expected, rep);
-                    return null;
-                });
+        Utils.assertWithAllModes("f1f2f3!f4f5!f6!f7!f8f10f11f12f11f12f13", script);
     }
 }

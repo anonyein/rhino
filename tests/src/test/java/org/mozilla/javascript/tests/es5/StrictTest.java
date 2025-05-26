@@ -1,7 +1,7 @@
 package org.mozilla.javascript.tests.es5;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * @see <a
@@ -17,7 +17,7 @@ public class StrictTest {
                         + "Function('with(this) {  }')();"
                         + "})();"
                         + "'done'";
-        Utils.assertWithAllOptimizationLevels("done", script);
+        Utils.assertWithAllModes("done", script);
     }
 
     @Test
@@ -28,6 +28,6 @@ public class StrictTest {
                         + "new Function('with(this) {  }')();"
                         + "})();"
                         + "'done'";
-        Utils.assertWithAllOptimizationLevels("done", script);
+        Utils.assertWithAllModes("done", script);
     }
 }

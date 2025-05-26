@@ -17,47 +17,253 @@ import java.util.EnumSet;
  *
  * @author Norris Boyd
  */
-public class BaseFunction extends IdScriptableObject implements Function {
+public class BaseFunction extends ScriptableObject implements Function {
     private static final long serialVersionUID = 5311394446546053859L;
 
     private static final Object FUNCTION_TAG = "Function";
     private static final String FUNCTION_CLASS = "Function";
     static final String GENERATOR_FUNCTION_CLASS = "__GeneratorFunction";
 
-    static void init(Context cx, Scriptable scope, boolean sealed) {
-        BaseFunction obj = new BaseFunction();
+    private static final String APPLY_TAG = "APPLY_TAG";
+    private static final String CALL_TAG = "CALL_TAG";
+
+    static LambdaConstructor init(Context cx, Scriptable scope, boolean sealed) {
+        LambdaConstructor ctor =
+                new LambdaConstructor(
+                        scope,
+                        FUNCTION_CLASS,
+                        1,
+                        BaseFunction::js_constructorCall,
+                        BaseFunction::js_constructor);
+
+        var proto =
+                new LambdaFunction(
+                        scope, "", 0, null, (lcx, lscope, lthisObj, largs) -> Undefined.instance);
+
+        proto.defineProperty("constructor", ctor, DONTENUM);
+        // Set the constructor correctly here. i.e. ctor.prototype.constructor == ctor
+        // Redo the stuff about setupDefaultPrototype.
+
+        ctor.setPrototypeProperty(proto);
+        // Do this early, so that the functions on the prototype get
+        // the right prototype...
+        ScriptableObject.defineProperty(scope, FUNCTION_CLASS, ctor, DONTENUM);
+        ctor.setPrototype((Scriptable) ctor.getPrototypeProperty());
+
+        defKnownBuiltInOnProto(ctor, APPLY_TAG, scope, "apply", 2, BaseFunction::js_apply);
+        defOnProto(ctor, scope, "bind", 1, BaseFunction::js_bind);
+        defKnownBuiltInOnProto(ctor, CALL_TAG, scope, "call", 1, BaseFunction::js_call);
+        defOnProto(ctor, scope, "toSource", 1, BaseFunction::js_toSource);
+        defOnProto(ctor, scope, "toString", 0, BaseFunction::js_toString);
+        defOnProto(
+                ctor,
+                scope,
+                SymbolKey.HAS_INSTANCE,
+                1,
+                BaseFunction::js_hasInstance,
+                DONTENUM | READONLY | PERMANENT);
+
         // Function.prototype attributes: see ECMA 15.3.3.1
-        obj.prototypePropertyAttributes = DONTENUM | READONLY | PERMANENT;
+        ctor.setPrototypePropertyAttributes(DONTENUM | READONLY | PERMANENT);
         if (cx.getLanguageVersion() >= Context.VERSION_ES6) {
-            obj.setStandardPropertyAttributes(READONLY | DONTENUM);
+            ctor.setStandardPropertyAttributes(READONLY | DONTENUM);
         }
-        obj.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed);
+        ScriptableObject.defineProperty(scope, FUNCTION_CLASS, ctor, DONTENUM);
+        if (sealed) {
+            ctor.sealObject();
+            ((ScriptableObject) ctor.getPrototypeProperty()).sealObject();
+        }
+        return ctor;
     }
 
-    /** @deprecated Use {@link #init(Context, Scriptable, boolean)} instead */
+    private static void defOnProto(
+            LambdaConstructor constructor,
+            Scriptable scope,
+            String name,
+            int length,
+            SerializableCallable target) {
+        constructor.definePrototypeMethod(
+                scope, name, length, null, target, DONTENUM, DONTENUM | READONLY);
+    }
+
+    private static void defKnownBuiltInOnProto(
+            LambdaConstructor constructor,
+            Object tag,
+            Scriptable scope,
+            String name,
+            int length,
+            SerializableCallable target) {
+        constructor.defineKnownBuiltInPrototypeMethod(
+                tag, scope, name, length, null, target, DONTENUM, DONTENUM | READONLY);
+    }
+
+    private static void defOnProto(
+            LambdaConstructor constructor,
+            Scriptable scope,
+            SymbolKey name,
+            int length,
+            SerializableCallable target,
+            int attributes) {
+        constructor.definePrototypeMethod(
+                scope, name, length, null, target, attributes, DONTENUM | READONLY);
+    }
+
+    /**
+     * @deprecated Use {@link #init(Context, Scriptable, boolean)} instead
+     */
     @Deprecated
     static void init(Scriptable scope, boolean sealed) {
         init(Context.getContext(), scope, sealed);
     }
 
     static Object initAsGeneratorFunction(Scriptable scope, boolean sealed) {
-        BaseFunction obj = new BaseFunction(true);
+        var proto = new NativeObject();
+
+        var function = (Scriptable) ScriptableObject.getProperty(scope, FUNCTION_CLASS);
+        var functionProto = (Scriptable) ScriptableObject.getProperty(function, "prototype");
+        proto.setPrototype(functionProto);
+
+        var iterator = (Scriptable) ScriptableObject.getProperty(scope, "Iterator");
+        var iteratorPrototype = ScriptableObject.getProperty(iterator, "prototype");
+        ScriptableObject.putProperty(proto, "prototype", iteratorPrototype);
+
+        LambdaConstructor ctor =
+                new LambdaConstructor(
+                        scope,
+                        GENERATOR_FUNCTION_CLASS,
+                        1,
+                        proto,
+                        BaseFunction::js_gen_constructorCall,
+                        BaseFunction::js_gen_constructor);
+
+        proto.defineProperty("constructor", ctor, DONTENUM);
+
         // Function.prototype attributes: see ECMA 15.3.3.1
-        obj.prototypePropertyAttributes = READONLY | PERMANENT;
-        obj.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed);
+        ctor.setPrototypePropertyAttributes(DONTENUM | READONLY | PERMANENT);
+
+        ScriptableObject.putProperty(scope, GENERATOR_FUNCTION_CLASS, ctor);
+        // Function.prototype attributes: see ECMA 15.3.3.1
         // The "GeneratorFunction" name actually never appears in the global scope.
         // Return it here so it can be cached as a "builtin"
-        return ScriptableObject.getProperty(scope, GENERATOR_FUNCTION_CLASS);
+        return ctor;
     }
 
-    public BaseFunction() {}
+    public BaseFunction() {
+        createProperties();
+    }
 
     public BaseFunction(boolean isGenerator) {
+        createProperties();
         this.isGeneratorFunction = isGenerator;
     }
 
     public BaseFunction(Scriptable scope, Scriptable prototype) {
         super(scope, prototype);
+        createProperties();
+        ScriptRuntime.setBuiltinProtoAndParent(this, scope, TopLevel.Builtins.Function);
+    }
+
+    protected void createProperties() {
+        ScriptableObject.defineBuiltInProperty(
+                this, "length", DONTENUM | READONLY, BaseFunction::lengthGetter);
+        ScriptableObject.defineBuiltInProperty(
+                this,
+                "name",
+                DONTENUM | READONLY,
+                BaseFunction::nameGetter,
+                BaseFunction::nameSetter);
+        if (includeNonStandardProps()) {
+            ScriptableObject.defineBuiltInProperty(
+                    this, "arity", PERMANENT | DONTENUM | READONLY, BaseFunction::arityGetter);
+            ScriptableObject.defineBuiltInProperty(
+                    this,
+                    "arguments",
+                    PERMANENT | DONTENUM,
+                    BaseFunction::argumentsGetter,
+                    BaseFunction::argumentsSetter);
+        }
+    }
+
+    protected boolean includeNonStandardProps() {
+        return !Context.isCurrentContextStrict();
+    }
+
+    private static Object lengthGetter(BaseFunction function, Scriptable start) {
+        return function.getLength();
+    }
+
+    private static Object arityGetter(BaseFunction function, Scriptable start) {
+        return function.getArity();
+    }
+
+    private static Object argumentsGetter(BaseFunction function, Scriptable start) {
+        return function.getArguments();
+    }
+
+    private static boolean argumentsSetter(
+            BaseFunction function,
+            Object value,
+            Scriptable owner,
+            Scriptable start,
+            boolean isThrow) {
+        function.argumentsObj = value;
+        return true;
+    }
+
+    private static Object nameGetter(BaseFunction function, Scriptable start) {
+        return function.nameValue != null ? function.nameValue : function.getFunctionName();
+    }
+
+    private static boolean nameSetter(
+            BaseFunction function,
+            Object value,
+            Scriptable owner,
+            Scriptable start,
+            boolean isThrow) {
+        function.nameValue = value;
+        return true;
+    }
+
+    protected void createPrototypeProperty() {
+        if (!has("prototype", this)) {
+            ScriptableObject.defineBuiltInProperty(
+                    this,
+                    "prototype",
+                    prototypePropertyAttributes,
+                    BaseFunction::prototypeGetter,
+                    BaseFunction::prototypeSetter,
+                    BaseFunction::prototypeAttrSetter);
+        }
+    }
+
+    private static Object prototypeGetter(BaseFunction function, Scriptable start) {
+        return function.getPrototypeProperty();
+    }
+
+    private static boolean prototypeSetter(
+            BaseFunction function,
+            Object value,
+            Scriptable owner,
+            Scriptable start,
+            boolean isThrow) {
+        function.setPrototypeProperty(value == null ? UniqueTag.NULL_VALUE : value);
+        return true;
+    }
+
+    private static void prototypeAttrSetter(BaseFunction function, int attributes) {
+        function.prototypePropertyAttributes = attributes;
+    }
+
+    protected final boolean defaultHas(String name) {
+        return super.has(name, this);
+    }
+
+    protected final Object defaultGet(String name) {
+        return super.get(name, this);
+    }
+
+    protected final void defaultPut(String name, Object value) {
+        super.put(name, this, value);
     }
 
     @Override
@@ -70,10 +276,15 @@ public class BaseFunction extends IdScriptableObject implements Function {
         return isGeneratorFunction;
     }
 
+    // Generated code will override this
+    protected boolean hasDefaultParameters() {
+        return false;
+    }
+
     /**
      * Gets the value returned by calling the typeof operator on this object.
      *
-     * @see org.mozilla.javascript.ScriptableObject#getTypeOf()
+     * @see ScriptableObject#getTypeOf()
      * @return "function" or "undefined" if {@link #avoidObjectDetection()} returns <code>true
      *     </code>
      */
@@ -109,263 +320,143 @@ public class BaseFunction extends IdScriptableObject implements Function {
             Id_arguments = 5,
             MAX_INSTANCE_ID = 5;
 
-    @Override
-    protected int getMaxInstanceId() {
-        return MAX_INSTANCE_ID;
+    static boolean isApply(KnownBuiltInFunction f) {
+        return f.getTag() == APPLY_TAG;
     }
 
-    @Override
-    protected int findInstanceIdInfo(String s) {
-        switch (s) {
-            case "length":
-                if (lengthPropertyAttributes >= 0) {
-                    return instanceIdInfo(lengthPropertyAttributes, Id_length);
-                }
-                break;
-            case "arity":
-                if (arityPropertyAttributes >= 0) {
-                    return instanceIdInfo(arityPropertyAttributes, Id_arity);
-                }
-                break;
-            case "name":
-                if (namePropertyAttributes >= 0) {
-                    return instanceIdInfo(namePropertyAttributes, Id_name);
-                }
-                break;
-            case "prototype":
-                if (hasPrototypeProperty()) {
-                    return instanceIdInfo(prototypePropertyAttributes, Id_prototype);
-                }
-                break;
-            case "arguments":
-                return instanceIdInfo(argumentsAttributes, Id_arguments);
-            default:
-                break;
+    static boolean isApplyOrCall(KnownBuiltInFunction f) {
+        var tag = f.getTag();
+        return tag == APPLY_TAG || tag == CALL_TAG;
+    }
+
+    private static Object js_hasInstance(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        if (!(thisObj instanceof Callable)) {
+            return false;
+        }
+        Object protoProp = null;
+        if (thisObj instanceof BoundFunction)
+            protoProp =
+                    ((NativeFunction) ((BoundFunction) thisObj).getTargetFunction())
+                            .getPrototypeProperty();
+        else {
+            protoProp = ScriptableObject.getProperty(thisObj, "prototype");
         }
 
-        return super.findInstanceIdInfo(s);
-    }
+        if (ScriptRuntime.isObject(protoProp)) {
+            if (args.length > 0 && args[0] instanceof Scriptable) {
+                Scriptable obj = (Scriptable) args[0];
 
-    @Override
-    protected String getInstanceIdName(int id) {
-        switch (id) {
-            case Id_length:
-                return "length";
-            case Id_arity:
-                return "arity";
-            case Id_name:
-                return "name";
-            case Id_prototype:
-                return "prototype";
-            case Id_arguments:
-                return "arguments";
+                return ScriptRuntime.jsDelegatesTo(obj, (Scriptable) protoProp);
+            }
+            return false; // NOT_FOUND, null etc.
         }
-        return super.getInstanceIdName(id);
+
+        throw ScriptRuntime.typeErrorById(
+                "msg.instanceof.bad.prototype",
+                (thisObj instanceof BaseFunction)
+                        ? ((BaseFunction) thisObj).getFunctionName()
+                        : "unknown");
     }
 
-    @Override
-    protected Object getInstanceIdValue(int id) {
-        switch (id) {
-            case Id_length:
-                return lengthPropertyAttributes >= 0 ? getLength() : NOT_FOUND;
-            case Id_arity:
-                return arityPropertyAttributes >= 0 ? getArity() : NOT_FOUND;
-            case Id_name:
-                return namePropertyAttributes >= 0
-                        ? (nameValue != null ? nameValue : getFunctionName())
-                        : NOT_FOUND;
-            case Id_prototype:
-                return getPrototypeProperty();
-            case Id_arguments:
-                return getArguments();
+    private static Object js_bind(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        if (!(thisObj instanceof Callable)) {
+            throw ScriptRuntime.notFunctionError(thisObj);
         }
-        return super.getInstanceIdValue(id);
-    }
-
-    @Override
-    protected void setInstanceIdValue(int id, Object value) {
-        switch (id) {
-            case Id_prototype:
-                if ((prototypePropertyAttributes & READONLY) == 0) {
-                    prototypeProperty = (value != null) ? value : UniqueTag.NULL_VALUE;
-                }
-                return;
-            case Id_arguments:
-                if (value == NOT_FOUND) {
-                    // This should not be called since "arguments" is PERMANENT
-                    Kit.codeBug();
-                }
-                if (defaultHas("arguments")) {
-                    defaultPut("arguments", value);
-                } else if ((argumentsAttributes & READONLY) == 0) {
-                    argumentsObj = value;
-                }
-                return;
-            case Id_name:
-                if (value == NOT_FOUND) {
-                    namePropertyAttributes = -1;
-                    nameValue = null;
-                } else if (value instanceof CharSequence) {
-                    nameValue = ScriptRuntime.toString(value);
-                } else {
-                    nameValue = "";
-                }
-                return;
-            case Id_arity:
-                if (value == NOT_FOUND) {
-                    arityPropertyAttributes = -1;
-                }
-                return;
-            case Id_length:
-                if (value == NOT_FOUND) {
-                    lengthPropertyAttributes = -1;
-                }
-                return;
+        Callable targetFunction = (Callable) thisObj;
+        int argc = args.length;
+        final Scriptable boundThis;
+        final Object[] boundArgs;
+        if (argc > 0) {
+            boundThis = ScriptRuntime.toObjectOrNull(cx, args[0], scope);
+            boundArgs = new Object[argc - 1];
+            System.arraycopy(args, 1, boundArgs, 0, argc - 1);
+        } else {
+            boundThis = null;
+            boundArgs = ScriptRuntime.emptyArgs;
         }
-        super.setInstanceIdValue(id, value);
+        return new BoundFunction(cx, scope, targetFunction, boundThis, boundArgs);
     }
 
-    @Override
-    protected void setInstanceIdAttributes(int id, int attr) {
-        switch (id) {
-            case Id_prototype:
-                prototypePropertyAttributes = attr;
-                return;
-            case Id_arguments:
-                argumentsAttributes = attr;
-                return;
-            case Id_arity:
-                arityPropertyAttributes = attr;
-                return;
-            case Id_name:
-                namePropertyAttributes = attr;
-                return;
-            case Id_length:
-                lengthPropertyAttributes = attr;
-                return;
-        }
-        super.setInstanceIdAttributes(id, attr);
+    private static Object js_apply(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return ScriptRuntime.applyOrCall(true, cx, scope, thisObj, args);
     }
 
-    @Override
-    protected void fillConstructorProperties(IdFunctionObject ctor) {
-        // Fix up bootstrapping problem: getPrototype of the IdFunctionObject
-        // can not return Function.prototype because Function object is not
-        // yet defined.
-        ctor.setPrototype(this);
-        super.fillConstructorProperties(ctor);
+    private static Object js_call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return ScriptRuntime.applyOrCall(false, cx, scope, thisObj, args);
     }
 
-    @Override
-    protected void initPrototypeId(int id) {
-        String s;
-        int arity;
-        switch (id) {
-            case Id_constructor:
-                arity = 1;
-                s = "constructor";
-                break;
-            case Id_toString:
-                arity = 0;
-                s = "toString";
-                break;
-            case Id_toSource:
-                arity = 1;
-                s = "toSource";
-                break;
-            case Id_apply:
-                arity = 2;
-                s = "apply";
-                break;
-            case Id_call:
-                arity = 1;
-                s = "call";
-                break;
-            case Id_bind:
-                arity = 1;
-                s = "bind";
-                break;
-            default:
-                throw new IllegalArgumentException(String.valueOf(id));
-        }
-        initPrototypeMethod(FUNCTION_TAG, id, s, arity);
-    }
-
-    static boolean isApply(IdFunctionObject f) {
-        return f.hasTag(FUNCTION_TAG) && f.methodId() == Id_apply;
-    }
-
-    static boolean isApplyOrCall(IdFunctionObject f) {
-        if (f.hasTag(FUNCTION_TAG)) {
-            switch (f.methodId()) {
-                case Id_apply:
-                case Id_call:
-                    return true;
+    private static Object js_toSource(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        BaseFunction realf = realFunction(thisObj, "toSource");
+        int indent = 0;
+        EnumSet<DecompilerFlag> flags = EnumSet.of(DecompilerFlag.TO_SOURCE);
+        if (args.length != 0) {
+            indent = ScriptRuntime.toInt32(args[0]);
+            if (indent >= 0) {
+                flags = EnumSet.noneOf(DecompilerFlag.class);
+            } else {
+                indent = 0;
             }
         }
-        return false;
+        return realf.decompile(indent, flags);
     }
 
-    @Override
-    public Object execIdCall(
-            IdFunctionObject f, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-        if (!f.hasTag(FUNCTION_TAG)) {
-            return super.execIdCall(f, cx, scope, thisObj, args);
-        }
-        int id = f.methodId();
-        switch (id) {
-            case Id_constructor:
-                return jsConstructor(cx, scope, args);
-
-            case Id_toString:
-                {
-                    BaseFunction realf = realFunction(thisObj, f);
-                    int indent = ScriptRuntime.toInt32(args, 0);
-                    return realf.decompile(indent, EnumSet.noneOf(DecompilerFlag.class));
-                }
-
-            case Id_toSource:
-                {
-                    BaseFunction realf = realFunction(thisObj, f);
-                    int indent = 0;
-                    EnumSet<DecompilerFlag> flags = EnumSet.of(DecompilerFlag.TO_SOURCE);
-                    if (args.length != 0) {
-                        indent = ScriptRuntime.toInt32(args[0]);
-                        if (indent >= 0) {
-                            flags = EnumSet.noneOf(DecompilerFlag.class);
-                        } else {
-                            indent = 0;
-                        }
-                    }
-                    return realf.decompile(indent, flags);
-                }
-
-            case Id_apply:
-            case Id_call:
-                return ScriptRuntime.applyOrCall(id == Id_apply, cx, scope, thisObj, args);
-
-            case Id_bind:
-                if (!(thisObj instanceof Callable)) {
-                    throw ScriptRuntime.notFunctionError(thisObj);
-                }
-                Callable targetFunction = (Callable) thisObj;
-                int argc = args.length;
-                final Scriptable boundThis;
-                final Object[] boundArgs;
-                if (argc > 0) {
-                    boundThis = ScriptRuntime.toObjectOrNull(cx, args[0], scope);
-                    boundArgs = new Object[argc - 1];
-                    System.arraycopy(args, 1, boundArgs, 0, argc - 1);
-                } else {
-                    boundThis = null;
-                    boundArgs = ScriptRuntime.emptyArgs;
-                }
-                return new BoundFunction(cx, scope, targetFunction, boundThis, boundArgs);
-        }
-        throw new IllegalArgumentException(String.valueOf(id));
+    private static Object js_toString(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        BaseFunction realf = realFunction(thisObj, "toString");
+        int indent = ScriptRuntime.toInt32(args, 0);
+        return realf.decompile(indent, EnumSet.noneOf(DecompilerFlag.class));
     }
 
-    private static BaseFunction realFunction(Scriptable thisObj, IdFunctionObject f) {
+    private static Scriptable js_gen_constructorCall(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return js_gen_constructor(cx, scope, args);
+    }
+
+    private static Scriptable js_constructor(Context cx, Scriptable scope, Object[] args) {
+        if (cx.isStrictMode()) {
+            // Disable strict mode forcefully, and restore it after the call
+            NativeCall activation = cx.currentActivationCall;
+            boolean strictMode = cx.isTopLevelStrict;
+            try {
+                cx.currentActivationCall = null;
+                cx.isTopLevelStrict = false;
+                return jsConstructor(cx, scope, args, false);
+            } finally {
+                cx.isTopLevelStrict = strictMode;
+                cx.currentActivationCall = activation;
+            }
+        } else {
+            return jsConstructor(cx, scope, args, false);
+        }
+    }
+
+    private static Scriptable js_constructorCall(
+            Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+        return js_constructor(cx, scope, args);
+    }
+
+    private static Scriptable js_gen_constructor(Context cx, Scriptable scope, Object[] args) {
+        if (cx.isStrictMode()) {
+            // Disable strict mode forcefully, and restore it after the call
+            NativeCall activation = cx.currentActivationCall;
+            boolean strictMode = cx.isTopLevelStrict;
+            try {
+                cx.currentActivationCall = null;
+                cx.isTopLevelStrict = false;
+                return jsConstructor(cx, scope, args, true);
+            } finally {
+                cx.isTopLevelStrict = strictMode;
+                cx.currentActivationCall = activation;
+            }
+        } else {
+            return jsConstructor(cx, scope, args, true);
+        }
+    }
+
+    private static BaseFunction realFunction(Scriptable thisObj, String functionName) {
         if (thisObj == null) {
             throw ScriptRuntime.notFunctionError(null);
         }
@@ -373,7 +464,7 @@ public class BaseFunction extends IdScriptableObject implements Function {
         if (x instanceof Delegator) {
             x = ((Delegator) x).getDelegee();
         }
-        return ensureType(x, BaseFunction.class, f);
+        return ensureType(x, BaseFunction.class, functionName);
     }
 
     /** Make value as DontEnum, DontDelete, ReadOnly prototype property of this Function object */
@@ -382,7 +473,8 @@ public class BaseFunction extends IdScriptableObject implements Function {
             throw new IllegalStateException();
         }
         prototypeProperty = (value != null) ? value : UniqueTag.NULL_VALUE;
-        prototypePropertyAttributes = DONTENUM | PERMANENT | READONLY;
+        createPrototypeProperty();
+        setAttributes("prototype", DONTENUM | PERMANENT | READONLY);
     }
 
     protected Scriptable getClassPrototype() {
@@ -401,6 +493,11 @@ public class BaseFunction extends IdScriptableObject implements Function {
 
     @Override
     public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+        if (cx.getLanguageVersion() >= Context.VERSION_ES6 && this.getHomeObject() != null) {
+            // Only methods have home objects associated with them
+            throw ScriptRuntime.typeErrorById("msg.not.ctor", getFunctionName());
+        }
+
         Scriptable result = createObject(cx, scope);
         if (result != null) {
             Object val = call(cx, scope, result, args);
@@ -436,8 +533,8 @@ public class BaseFunction extends IdScriptableObject implements Function {
     }
 
     /**
-     * Creates new script object. The default implementation of {@link #construct} uses the method
-     * to to get the value for <code>thisObj</code> argument when invoking {@link #call}. The methos
+     * Creates new script object. The default implementation of {@link #construct} uses this method
+     * to to get the value for <code>thisObj</code> argument when invoking {@link #call}. The method
      * is allowed to return <code>null</code> to indicate that {@link #call} will create a new
      * object itself. In this case {@link #construct} will set scope and prototype on the result
      * {@link #call} unless they are already set.
@@ -463,9 +560,7 @@ public class BaseFunction extends IdScriptableObject implements Function {
             sb.append(getFunctionName());
             sb.append("() {\n\t");
         }
-        sb.append("[native code, arity=");
-        sb.append(getArity());
-        sb.append("]\n");
+        sb.append("[native code]\n");
         if (!justbody) {
             sb.append("}\n");
         }
@@ -489,29 +584,34 @@ public class BaseFunction extends IdScriptableObject implements Function {
      * native objects.
      */
     public void setStandardPropertyAttributes(int attributes) {
-        namePropertyAttributes = attributes;
-        lengthPropertyAttributes = attributes;
-        arityPropertyAttributes = attributes;
+        setAttributes("name", attributes);
+        setAttributes("length", attributes);
+        setAttributes("arity", attributes);
     }
 
     public void setPrototypePropertyAttributes(int attributes) {
         prototypePropertyAttributes = attributes;
+        getMap().compute(
+                        this,
+                        "prototype",
+                        0,
+                        (k, i, s) -> {
+                            if (s != null) {
+                                s.setAttributes(attributes);
+                            }
+                            return s;
+                        });
     }
 
     protected boolean hasPrototypeProperty() {
-        return prototypeProperty != null || this instanceof NativeFunction;
+        return (prototypeProperty != null && prototypeProperty != UniqueTag.NOT_FOUND)
+                || this instanceof NativeFunction;
     }
 
-    protected Object getPrototypeProperty() {
+    public Object getPrototypeProperty() {
         Object result = prototypeProperty;
-        if (result == null) {
-            // only create default prototype on native JavaScript functions,
-            // not on built-in functions, java methods, host objects etc.
-            if (this instanceof NativeFunction) {
-                result = setupDefaultPrototype();
-            } else {
-                result = Undefined.instance;
-            }
+        if (result == null || result == UniqueTag.NOT_FOUND) {
+            result = Undefined.instance;
         } else if (result == UniqueTag.NULL_VALUE) {
             result = null;
         }
@@ -519,12 +619,17 @@ public class BaseFunction extends IdScriptableObject implements Function {
     }
 
     protected void setPrototypeProperty(Object prototype) {
-        this.prototypeProperty = prototype;
+        if (prototype != null) {
+            createPrototypeProperty();
+            this.prototypeProperty = prototype;
+        } else {
+            prototypeProperty = UniqueTag.NOT_FOUND;
+        }
     }
 
-    protected synchronized Object setupDefaultPrototype() {
-        if (prototypeProperty != null) {
-            return prototypeProperty;
+    protected synchronized Object setupDefaultPrototype(Scriptable scope) {
+        if (!has("prototyoe", this)) {
+            createPrototypeProperty();
         }
         NativeObject obj = new NativeObject();
         obj.setParentScope(getParentScope());
@@ -547,26 +652,26 @@ public class BaseFunction extends IdScriptableObject implements Function {
         // <Function name>.arguments is deprecated, so we use a slow
         // way of getting it that doesn't add to the invocation cost.
         // TODO: add warning, error based on version
-        Object value = defaultHas("arguments") ? defaultGet("arguments") : argumentsObj;
-        if (value != NOT_FOUND) {
+        if (argumentsObj != NOT_FOUND) {
             // Should after changing <Function name>.arguments its
             // activation still be available during Function call?
             // This code assumes it should not:
             // defaultGet("arguments") != NOT_FOUND
             // means assigned arguments
-            return value;
+            return argumentsObj;
         }
         Context cx = Context.getContext();
         NativeCall activation = ScriptRuntime.findFunctionActivation(cx, this);
         return (activation == null) ? null : activation.get("arguments", activation);
     }
 
-    private Object jsConstructor(Context cx, Scriptable scope, Object[] args) {
+    private static Scriptable jsConstructor(
+            Context cx, Scriptable scope, Object[] args, boolean isGeneratorFunction) {
         int arglen = args.length;
         StringBuilder sourceBuf = new StringBuilder();
 
         sourceBuf.append("function ");
-        if (isGeneratorFunction()) {
+        if (isGeneratorFunction) {
             sourceBuf.append("* ");
         }
         /* version != 1.2 Function constructor behavior -
@@ -620,33 +725,12 @@ public class BaseFunction extends IdScriptableObject implements Function {
         return cx.compileFunction(global, source, evaluator, reporter, sourceURI, 1, null);
     }
 
-    @Override
-    protected int findPrototypeId(String s) {
-        int id;
-        switch (s) {
-            case "constructor":
-                id = Id_constructor;
-                break;
-            case "toString":
-                id = Id_toString;
-                break;
-            case "toSource":
-                id = Id_toSource;
-                break;
-            case "apply":
-                id = Id_apply;
-                break;
-            case "call":
-                id = Id_call;
-                break;
-            case "bind":
-                id = Id_bind;
-                break;
-            default:
-                id = 0;
-                break;
-        }
-        return id;
+    public void setHomeObject(Scriptable homeObject) {
+        this.homeObject = homeObject;
+    }
+
+    public Scriptable getHomeObject() {
+        return homeObject;
     }
 
     private static final int Id_constructor = 1,
@@ -655,19 +739,17 @@ public class BaseFunction extends IdScriptableObject implements Function {
             Id_apply = 4,
             Id_call = 5,
             Id_bind = 6,
-            MAX_PROTOTYPE_ID = Id_bind;
+            SymbolId_hasInstance = 7,
+            MAX_PROTOTYPE_ID = SymbolId_hasInstance;
 
     private Object prototypeProperty;
     private Object argumentsObj = NOT_FOUND;
-    private String nameValue = null;
+    private Object nameValue = null;
     private boolean isGeneratorFunction = false;
+    private Scriptable homeObject = null;
 
     // For function object instances, attributes are
     //  {configurable:false, enumerable:false};
     // see ECMA 15.3.5.2
     private int prototypePropertyAttributes = PERMANENT | DONTENUM;
-    private int argumentsAttributes = PERMANENT | DONTENUM;
-    private int arityPropertyAttributes = PERMANENT | READONLY | DONTENUM;
-    private int namePropertyAttributes = READONLY | DONTENUM;
-    private int lengthPropertyAttributes = PERMANENT | READONLY | DONTENUM;
 }

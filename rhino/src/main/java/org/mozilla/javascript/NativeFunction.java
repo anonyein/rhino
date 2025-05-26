@@ -25,6 +25,7 @@ public abstract class NativeFunction extends BaseFunction {
     public final void initScriptFunction(
             Context cx, Scriptable scope, boolean es6GeneratorFunction) {
         ScriptRuntime.setFunctionProtoAndParent(this, cx, scope, es6GeneratorFunction);
+        setupDefaultPrototype(scope);
     }
 
     /**
@@ -117,4 +118,6 @@ public abstract class NativeFunction extends BaseFunction {
         // from earlier Rhino versions. See Bugzilla #396117.
         return false;
     }
+
+    public abstract boolean isStrict();
 }

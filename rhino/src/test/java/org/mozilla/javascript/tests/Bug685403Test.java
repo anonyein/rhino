@@ -17,7 +17,9 @@ import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 
-/** @author André Bargull */
+/**
+ * @author André Bargull
+ */
 public class Bug685403Test {
 
     private Context cx;
@@ -26,7 +28,7 @@ public class Bug685403Test {
     @Before
     public void setUp() {
         cx = Context.enter();
-        cx.setOptimizationLevel(-1);
+        cx.setInterpretedMode(true);
         scope = cx.initStandardObjects();
     }
 

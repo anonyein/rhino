@@ -14,6 +14,7 @@ import org.junit.Test;
 import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Wrapper;
+import org.mozilla.javascript.testutils.Utils;
 
 /*
  * This testcase tests the support of converting javascript functions to
@@ -27,7 +28,7 @@ public class InterfaceAdapterTest {
     }
 
     private void testIt(String js, Object expected) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final ScriptableObject scope = cx.initStandardObjects();
                     scope.put("list", scope, createList());

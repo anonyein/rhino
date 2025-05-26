@@ -1,8 +1,5 @@
 package org.mozilla.javascript;
 
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-
 /**
  * A specialized property accessor using lambda functions, similar to {@link LambdaSlot}, but allows
  * defining properties with getter and setter lambdas that require access to the owner object
@@ -15,8 +12,8 @@ import java.util.function.Function;
  * native functionality without the need for reflection.
  */
 public class LambdaAccessorSlot extends Slot {
-    private transient Function<Scriptable, Object> getter;
-    private transient BiConsumer<Scriptable, Object> setter;
+    private ScriptableObject.LambdaGetterFunction getter;
+    private ScriptableObject.LambdaSetterFunction setter;
     private LambdaFunction getterFunction;
     private LambdaFunction setterFunction;
 
@@ -26,6 +23,19 @@ public class LambdaAccessorSlot extends Slot {
 
     LambdaAccessorSlot(Slot oldSlot) {
         super(oldSlot);
+    }
+
+    @Override
+    LambdaAccessorSlot copySlot() {
+        var newSlot = new LambdaAccessorSlot(this);
+        newSlot.value = value;
+        newSlot.getter = getter;
+        newSlot.setter = setter;
+        newSlot.getterFunction = getterFunction;
+        newSlot.setterFunction = setterFunction;
+        newSlot.next = null;
+        newSlot.orderedNext = null;
+        return newSlot;
     }
 
     @Override
@@ -40,7 +50,17 @@ public class LambdaAccessorSlot extends Slot {
 
     @Override
     ScriptableObject getPropertyDescriptor(Context cx, Scriptable scope) {
-        ScriptableObject desc = (ScriptableObject) cx.newObject(scope);
+        return buildPropertyDescriptor(cx);
+    }
+
+    /**
+     * The method exists avoid changing the getPropertyDescriptor signature and at the same time to
+     * make it explicit that we don't use Scriptable scope parameter of getPropertyDescriptor, since
+     * it can be problematic when called from inside ThreadSafeSlotMapContainer::compute lambda
+     * which can lead to deadlocks.
+     */
+    public ScriptableObject buildPropertyDescriptor(Context cx) {
+        ScriptableObject desc = new NativeObject();
 
         int attr = getAttributes();
         boolean es6 = cx.getLanguageVersion() >= Context.VERSION_ES6;
@@ -100,7 +120,7 @@ public class LambdaAccessorSlot extends Slot {
         return super.getValue(owner);
     }
 
-    public void setGetter(Scriptable scope, Function<Scriptable, Object> getter) {
+    public void setGetter(Scriptable scope, ScriptableObject.LambdaGetterFunction getter) {
         this.getter = getter;
         if (getter != null) {
             this.getterFunction =
@@ -112,7 +132,7 @@ public class LambdaAccessorSlot extends Slot {
         }
     }
 
-    public void setSetter(Scriptable scope, BiConsumer<Scriptable, Object> setter) {
+    public void setSetter(Scriptable scope, ScriptableObject.LambdaSetterFunction setter) {
         this.setter = setter;
         if (setter != null) {
             this.setterFunction =
@@ -125,5 +145,13 @@ public class LambdaAccessorSlot extends Slot {
                                 return Undefined.instance;
                             });
         }
+    }
+
+    public void replaceWith(LambdaAccessorSlot slot) {
+        this.getterFunction = slot.getterFunction;
+        this.getter = slot.getter;
+        this.setterFunction = slot.setterFunction;
+        this.setter = slot.setter;
+        setAttributes(slot.getAttributes());
     }
 }

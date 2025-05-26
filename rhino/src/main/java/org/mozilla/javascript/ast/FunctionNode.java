@@ -82,9 +82,39 @@ public class FunctionNode extends ScriptNode {
     private int rp = -1;
     private boolean hasRestParameter;
 
+    @Override
+    public List<Object> getDefaultParams() {
+        return defaultParams;
+    }
+
+    public void putDefaultParams(Object left, Object right) {
+        if (defaultParams == null) {
+            defaultParams = new ArrayList<>();
+        }
+        defaultParams.add(left);
+        defaultParams.add(right);
+    }
+
+    @Override
+    public List<Node[]> getDestructuringRvalues() {
+        return destructuringRvalues;
+    }
+
+    @Override
+    public void putDestructuringRvalues(Node left, Node right) {
+        if (destructuringRvalues == null) {
+            destructuringRvalues = new ArrayList<>();
+        }
+        destructuringRvalues.add(new Node[] {left, right});
+    }
+
+    ArrayList<Object> defaultParams;
+    ArrayList<Node[]> destructuringRvalues;
+
     // codegen variables
     private int functionType;
     private boolean needsActivation;
+    private boolean requiresArgumentObject;
     private boolean isGenerator;
     private boolean isES6Generator;
     private List<Node> generatorResumePoints;
@@ -198,8 +228,6 @@ public class FunctionNode extends ScriptNode {
      * based on the body bounds. Assumes the function node absolute position has already been set,
      * and the body node's absolute position and length are set.
      *
-     * <p>
-     *
      * @param body function body. Its parent is set to this node, and its position is updated to be
      *     relative to this node.
      * @throws IllegalArgumentException if body is {@code null}
@@ -266,6 +294,14 @@ public class FunctionNode extends ScriptNode {
 
     public void setRequiresActivation() {
         needsActivation = true;
+    }
+
+    public boolean requiresArgumentObject() {
+        return requiresArgumentObject;
+    }
+
+    public void setRequiresArgumentObject() {
+        this.requiresArgumentObject = true;
     }
 
     public boolean isGenerator() {

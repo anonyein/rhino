@@ -5,7 +5,7 @@
 package org.mozilla.javascript.tests.es6;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 public class ES6IteratorTest {
 
@@ -19,6 +19,6 @@ public class ES6IteratorTest {
                         + "    res = res + p + ' ';\n"
                         + "  }\n";
 
-        Utils.assertWithAllOptimizationLevelsES6("value done ", code);
+        Utils.assertWithAllModes_ES6("value done ", code);
     }
 }

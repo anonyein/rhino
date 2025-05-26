@@ -8,6 +8,7 @@ import org.mozilla.javascript.CompilerEnvirons;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Parser;
 import org.mozilla.javascript.ast.AstRoot;
+import org.mozilla.javascript.testutils.Utils;
 
 /** This is a set of tests for parsing and using BigInts. */
 public class BigIntTest {
@@ -22,5 +23,27 @@ public class BigIntTest {
             AstRoot root = new Parser(env).parse(stmt, "bigint.js", 1);
             assertEquals(stmt, root.toSource());
         }
+    }
+
+    @Test
+    public void compareWithString() {
+        Utils.assertWithAllModes_ES6(true, "9007199254740992n < '9007199254740993'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740992n <= '9007199254740993'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740993n <= '9007199254740993'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740993n == '9007199254740993'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740993n >= '9007199254740993'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740993n >= '9007199254740992'");
+        Utils.assertWithAllModes_ES6(true, "9007199254740993n > '9007199254740992'");
+    }
+
+    @Test
+    public void compareStringWith() {
+        Utils.assertWithAllModes_ES6(true, "'9007199254740992' < 9007199254740993n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740992' <= 9007199254740993n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740993' <= 9007199254740993n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740993' == 9007199254740993n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740993' >= 9007199254740993n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740993' >= 9007199254740992n");
+        Utils.assertWithAllModes_ES6(true, "'9007199254740993' > 9007199254740992n");
     }
 }

@@ -14,6 +14,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Unit tests to check forEach loops.
@@ -69,7 +70,7 @@ public class ForEachForOfTest {
     }
 
     private static void testList(final String script) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Scriptable scope = cx.initStandardObjects();
@@ -86,7 +87,7 @@ public class ForEachForOfTest {
     }
 
     private static void testArray(final String script) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Scriptable scope = cx.initStandardObjects();
@@ -103,7 +104,7 @@ public class ForEachForOfTest {
     }
 
     private static void testSet(final String script) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Scriptable scope = cx.initStandardObjects();
@@ -121,7 +122,7 @@ public class ForEachForOfTest {
     }
 
     private static void testMap(final String script) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     cx.setLanguageVersion(Context.VERSION_ES6);
                     final Scriptable scope = cx.initStandardObjects();

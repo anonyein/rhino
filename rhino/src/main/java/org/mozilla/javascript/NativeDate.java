@@ -21,8 +21,9 @@ import java.util.Locale;
  *
  * @author Mike McCabe
  *     <p>Significant parts of this code are adapted from the venerable jsdate.cpp (also Mozilla):
- *     https://dxr.mozilla.org/mozilla-central/source/js/src/jsdate.cpp
+ *     <a href="https://dxr.mozilla.org/mozilla-central/source/js/src/jsdate.cpp">jsdate.cpp</a>
  */
+@SuppressWarnings("AndroidJdkLibsChecker")
 final class NativeDate extends IdScriptableObject {
     private static final long serialVersionUID = -8307438915861678966L;
 
@@ -254,6 +255,10 @@ final class NativeDate extends IdScriptableObject {
                 arity = 1;
                 s = "toJSON";
                 break;
+            case SymbolId_toPrimitive:
+                initPrototypeMethod(
+                        DATE_TAG, id, SymbolKey.TO_PRIMITIVE, "[Symbol.toPrimitive]", 1);
+                return;
             default:
                 throw new IllegalArgumentException(String.valueOf(id));
         }
@@ -321,6 +326,24 @@ final class NativeDate extends IdScriptableObject {
                                 ScriptRuntime.toString(result));
                     }
                     return result;
+                }
+            case SymbolId_toPrimitive:
+                {
+                    Scriptable o = ScriptRuntime.toObject(cx, scope, thisObj);
+                    final Object arg0 = args.length > 0 ? args[0] : Undefined.instance;
+                    final String hint = (arg0 instanceof CharSequence) ? arg0.toString() : null;
+                    Class<?> typeHint = null;
+                    if ("string".equals(hint) || "default".equals(hint)) {
+                        typeHint = ScriptRuntime.StringClass;
+                    } else if ("number".equals(hint)) {
+                        typeHint = ScriptRuntime.NumberClass;
+                    }
+                    if (typeHint == null) {
+                        throw ScriptRuntime.typeErrorById(
+                                "msg.invalid.toprimitive.hint", ScriptRuntime.toString(arg0));
+                    }
+
+                    return ScriptableObject.getDefaultValue(o, typeHint);
                 }
         }
 
@@ -953,7 +976,7 @@ final class NativeDate extends IdScriptableObject {
                 i += 1;
                 yearlen = 6;
                 yearmod = (c == '-') ? -1 : 1;
-            } else if (c == 'T') {
+            } else if (c == 'T' && cx.getLanguageVersion() < Context.VERSION_ES6) {
                 // time-only forms no longer in spec, but follow spidermonkey here
                 i += 1;
                 state = HOUR;
@@ -961,31 +984,62 @@ final class NativeDate extends IdScriptableObject {
         }
         loop:
         while (state != ERROR) {
-            int m = i + (state == YEAR ? yearlen : state == MSEC ? 3 : 2);
-            if (m > len) {
-                state = ERROR;
-                break;
-            }
+            if (state == MSEC) {
+                // milli secs are different, digit 2 and 3 are optional
+                int value = 0;
+                int digitsFound = 0;
+                for (; i < len; i++) {
+                    char c = s.charAt(i);
+                    if (c < '0' || c > '9') {
+                        break;
+                    }
 
-            int value = 0;
-            for (; i < m; ++i) {
-                char c = s.charAt(i);
-                if (c < '0' || c > '9') {
+                    // skip more digits
+                    if (digitsFound < 3) {
+                        value = 10 * value + (c - '0');
+                        digitsFound++;
+                    }
+                }
+                if (digitsFound == 0) {
                     state = ERROR;
                     break loop;
                 }
-                value = 10 * value + (c - '0');
-            }
-            values[state] = value;
-
-            if (i == len) {
-                // reached EOF, check for end state
-                switch (state) {
-                    case HOUR:
-                    case TZHOUR:
-                        state = ERROR;
+                if (digitsFound < 3) {
+                    value = value * (digitsFound == 1 ? 100 : 10);
                 }
-                break;
+                values[state] = value;
+
+                if (i == len) {
+                    // no timezone at all is correct here
+                    break;
+                }
+            } else {
+                int m = i + (state == YEAR ? yearlen : 2);
+                if (m > len) {
+                    state = ERROR;
+                    break;
+                }
+
+                int value = 0;
+                for (; i < m; ++i) {
+                    char c = s.charAt(i);
+                    if (c < '0' || c > '9') {
+                        state = ERROR;
+                        break loop;
+                    }
+                    value = 10 * value + (c - '0');
+                }
+                values[state] = value;
+
+                if (i == len) {
+                    // reached EOF, check for end state
+                    switch (state) {
+                        case HOUR:
+                        case TZHOUR:
+                            state = ERROR;
+                    }
+                    break;
+                }
             }
 
             char c = s.charAt(i++);
@@ -994,6 +1048,9 @@ final class NativeDate extends IdScriptableObject {
                 values[TZHOUR] = 0;
                 values[TZMIN] = 0;
                 switch (state) {
+                    case YEAR:
+                    case MONTH:
+                    case DAY:
                     case MIN:
                     case SEC:
                     case MSEC:
@@ -1373,21 +1430,19 @@ final class NativeDate extends IdScriptableObject {
 
         // if called with just one arg -
         if (args.length == 1) {
-            Object arg0 = args[0];
-            if (arg0 instanceof NativeDate) {
-                obj.date = ((NativeDate) arg0).date;
+            final Object value = args[0];
+            if (value instanceof NativeDate) {
+                obj.date = ((NativeDate) value).date;
                 return obj;
             }
-            if (arg0 instanceof Scriptable) {
-                arg0 = ((Scriptable) arg0).getDefaultValue(null);
-            }
-            double date;
-            if (arg0 instanceof CharSequence) {
+            final Object v = ScriptRuntime.toPrimitive(value);
+            final double date;
+            if (v instanceof CharSequence) {
                 // it's a string; parse it.
-                date = date_parseString(cx, arg0.toString());
+                date = date_parseString(cx, v.toString());
             } else {
                 // if it's not a string, use it as a millisecond date
-                date = ScriptRuntime.toNumber(arg0);
+                date = ScriptRuntime.toNumber(v);
             }
             obj.date = TimeClip(date);
             return obj;
@@ -1583,28 +1638,28 @@ final class NativeDate extends IdScriptableObject {
         switch (methodId) {
             case Id_setUTCMilliseconds:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setMilliseconds:
                 maxargs = 1;
                 break;
 
             case Id_setUTCSeconds:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setSeconds:
                 maxargs = 2;
                 break;
 
             case Id_setUTCMinutes:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setMinutes:
                 maxargs = 3;
                 break;
 
             case Id_setUTCHours:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setHours:
                 maxargs = 4;
                 break;
@@ -1670,21 +1725,21 @@ final class NativeDate extends IdScriptableObject {
         switch (methodId) {
             case Id_setUTCDate:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setDate:
                 maxargs = 1;
                 break;
 
             case Id_setUTCMonth:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setMonth:
                 maxargs = 2;
                 break;
 
             case Id_setUTCFullYear:
                 local = false;
-                // fallthrough
+            // fallthrough
             case Id_setFullYear:
                 maxargs = 3;
                 break;
@@ -1899,6 +1954,14 @@ final class NativeDate extends IdScriptableObject {
         return id;
     }
 
+    @Override
+    protected int findPrototypeId(Symbol key) {
+        if (SymbolKey.TO_PRIMITIVE.equals(key)) {
+            return SymbolId_toPrimitive;
+        }
+        return 0;
+    }
+
     private static final int ConstructorId_now = -3,
             ConstructorId_parse = -2,
             ConstructorId_UTC = -1,
@@ -1949,7 +2012,8 @@ final class NativeDate extends IdScriptableObject {
             Id_setYear = 45,
             Id_toISOString = 46,
             Id_toJSON = 47,
-            MAX_PROTOTYPE_ID = Id_toJSON;
+            SymbolId_toPrimitive = 48,
+            MAX_PROTOTYPE_ID = SymbolId_toPrimitive;
 
     private static final int Id_toGMTString = Id_toUTCString; // Alias, see Ecma B.2.6
 

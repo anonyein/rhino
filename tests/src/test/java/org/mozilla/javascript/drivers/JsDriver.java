@@ -19,7 +19,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-/** @version $Id: JsDriver.java,v 1.10 2009/05/15 12:30:45 nboyd%atg.com Exp $ */
+/**
+ * @version $Id: JsDriver.java,v 1.10 2009/05/15 12:30:45 nboyd%atg.com Exp $
+ */
 public class JsDriver {
     private JsDriver() {}
 
@@ -622,7 +624,9 @@ public class JsDriver {
         }
 
         ShellContextFactory factory = new ShellContextFactory();
-        factory.setOptimizationLevel(arguments.getOptimizationLevel());
+        if (arguments.getOptimizationLevel() < 0) {
+            factory.setInterpretedMode(true);
+        }
         factory.setStrictMode(arguments.isStrict());
 
         File path = arguments.getTestsPath();

@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.mozilla.classfile.ClassFileWriter.ClassFileFormatException;
 import org.mozilla.javascript.ast.AstRoot;
@@ -64,14 +65,25 @@ public class Context implements Closeable {
      * The unknown version.
      *
      * <p>Be aware, this version will not support many of the newer language features and will not
-     * change in the future.
+     * change in the future. In practice, for historical reasons, this is an odd version that
+     * doesn't necessarily match any particular version of JavaScript and should not be used.
      *
-     * <p>Please use one of the other constants like VERSION_ES6 to get support for recent language
-     * features.
+     * <p>Please use one of the other constants like {@link #VERSION_ECMASCRIPT} to get support for
+     * recent language features.
      */
     public static final int VERSION_UNKNOWN = -1;
 
-    /** The default version. */
+    /**
+     * The default version for older versions of Rhino.
+     *
+     * <p>Be aware, this version will not support many of the newer language features and will not
+     * change in the future. In practice, for historical reasons, this is an odd version that
+     * doesn't necessarily match any particular version of JavaScript and should not be used,
+     * although many older scripts and many tests may depend on it.
+     *
+     * <p>Please use one of the other constants like {@link #VERSION_ECMASCRIPT} to get support for
+     * recent language features.
+     */
     public static final int VERSION_DEFAULT = 0;
 
     /** JavaScript 1.0 */
@@ -101,14 +113,33 @@ public class Context implements Closeable {
     /** JavaScript 1.8 */
     public static final int VERSION_1_8 = 180;
 
-    /** ECMAScript 6. */
+    /**
+     * ECMAScript 6 and after. This constant refers to the latest version of the language, and is
+     * mostly identical to {@link #VERSION_ECMASCRIPT}. The difference is that features that may
+     * cause existing code to break, such as enforcement of "const" and strict mode checks, are not
+     * enabled.
+     *
+     * <p>As of version 1.8, this is the default language version.
+     */
     public static final int VERSION_ES6 = 200;
+
+    /**
+     * The current version of JavaScript as defined by ECMAScript. This version will always refer to
+     * the latest version of the language that Rhino supports. This will include everything in
+     * {@link #VERSION_ES6}, plus features that may cause backward incompatibility, such as
+     * enforcement of "const" and strict mode checks.
+     *
+     * <p>As of version 1.8, the Rhino community has no plans to continue adding new language
+     * versions, but instead plans to track the ECMAScript specification as it evolves and add new
+     * features in new versions of Rhino using this version number.
+     */
+    public static final int VERSION_ECMASCRIPT = 250;
 
     /**
      * Controls behaviour of <code>Date.prototype.getYear()</code>. If <code>
      * hasFeature(FEATURE_NON_ECMA_GET_YEAR)</code> returns true, Date.prototype.getYear subtructs
      * 1900 only if 1900 &lt;= date &lt; 2000. The default behavior of {@link #hasFeature(int)} is
-     * always to subtruct 1900 as rquired by ECMAScript B.2.4.
+     * always to subtract 1900 as required by ECMAScript B.2.4.
      */
     public static final int FEATURE_NON_ECMA_GET_YEAR = 1;
 
@@ -136,7 +167,7 @@ public class Context implements Closeable {
      * when applied to objects and arrays. If <code>hasFeature(FEATURE_TO_STRING_AS_SOURCE)</code>
      * returns true, calling <code>toString()</code> on JS objects gives the same result as calling
      * <code>toSource()</code>. That is it returns JS source with code to create an object with all
-     * enumeratable fields of the original object instead of printing <code>[object <i>result of
+     * enumerable fields of the original object instead of printing <code>[object <i>result of
      * {@link Scriptable#getClassName()}</i>]</code>.
      *
      * <p>By default {@link #hasFeature(int)} returns true only if the current JS version is set to
@@ -160,7 +191,9 @@ public class Context implements Closeable {
      */
     public static final int FEATURE_PARENT_PROTO_PROPERTIES = 5;
 
-    /** @deprecated In previous releases, this name was given to FEATURE_PARENT_PROTO_PROPERTIES. */
+    /**
+     * @deprecated In previous releases, this name was given to FEATURE_PARENT_PROTO_PROPERTIES.
+     */
     @Deprecated public static final int FEATURE_PARENT_PROTO_PROPRTIES = 5;
 
     /**
@@ -344,8 +377,8 @@ public class Context implements Closeable {
     public static final int FEATURE_ENABLE_JAVA_MAP_ACCESS = 21;
 
     /**
-     * Internationalization API implementation (see https://tc39.github.io/ecma402) can be activated
-     * using this feature.
+     * Internationalization API implementation (see <a
+     * href="https://tc39.github.io/ecma402">ECMA-402</a>) can be activated using this feature.
      *
      * @since 1.7 Release 15
      */
@@ -354,12 +387,23 @@ public class Context implements Closeable {
     public static final String languageVersionProperty = "language version";
     public static final String errorReporterProperty = "error reporter";
 
-    /** Convenient value to use as zero-length array of objects. */
-    public static final Object[] emptyArgs = ScriptRuntime.emptyArgs;
+    private static final RegExpLoader regExpLoader =
+            ScriptRuntime.loadOneServiceImplementation(RegExpLoader.class);
+
+    /**
+     * Convenient value to use as zero-length array of objects.
+     *
+     * @deprecated As of 1.8.1, use {@link ScriptRuntime#emptyArgs} instead.
+     */
+    @Deprecated public static final Object[] emptyArgs = ScriptRuntime.emptyArgs;
 
     /**
      * Creates a new Context. The context will be associated with the {@link
-     * ContextFactory#getGlobal() global context factory}.
+     * ContextFactory#getGlobal() global context factory}. By default, the new context will run in
+     * compiled mode and use the {@link #VERSION_ES6} language version, which supports features as
+     * defined in the most recent ECMAScript standard. This default behavior can be changed by
+     * overriding the ContextFactory class and installing the new implementation as the global
+     * ContextFactory.
      *
      * <p>Note that the Context must be associated with a thread before it can be used to execute a
      * script.
@@ -376,7 +420,10 @@ public class Context implements Closeable {
 
     /**
      * Creates a new context. Provided as a preferred super constructor for subclasses in place of
-     * the deprecated default public constructor.
+     * the deprecated default public constructor. By default, the new context will run in compiled
+     * mode and use the {@link #VERSION_ES6} language version, which supports features as defined in
+     * the most recent ECMAScript standard. This default behavior can be changed by overriding the
+     * ContextFactory class
      *
      * @param factory the context factory associated with this context (most likely, the one that
      *     created the context). Can not be null. The context features are inherited from the
@@ -388,8 +435,8 @@ public class Context implements Closeable {
             throw new IllegalArgumentException("factory == null");
         }
         this.factory = factory;
-        version = VERSION_DEFAULT;
-        optimizationLevel = codegenClass != null ? 0 : -1;
+        version = VERSION_ES6;
+        interpretedMode = codegenClass == null;
         maximumInterpreterStackDepth = Integer.MAX_VALUE;
     }
 
@@ -398,8 +445,6 @@ public class Context implements Closeable {
      *
      * <p>The current Context is per-thread; this method looks up the Context associated with the
      * current thread.
-     *
-     * <p>
      *
      * @return the Context associated with the current thread, or null if no context is associated
      *     with the current thread.
@@ -620,7 +665,7 @@ public class Context implements Closeable {
 
     /**
      * Unseal previously sealed Context object. The <code>sealKey</code> argument should not be null
-     * and should match <code>sealKey</code> suplied with the last call to {@link #seal(Object)} or
+     * and should match <code>sealKey</code> supplied with the last call to {@link #seal(Object)} or
      * an exception will be thrown.
      *
      * @see #isSealed()
@@ -655,7 +700,19 @@ public class Context implements Closeable {
      * Set the language version.
      *
      * <p>Setting the language version will affect functions and scripts compiled subsequently. See
-     * the overview documentation for version-specific behavior.
+     * the overview documentation for version-specific behavior. The default version is {@link
+     * #VERSION_ES6}, which represents the newest ECMAScript features implemented by Rhino, minus
+     * some "const" and strict mode checks.
+     *
+     * <p>New projects should use either {@link #VERSION_ES6} or {@link #VERSION_ECMASCRIPT} unless
+     * a project needs backwards compatibility with older Rhino scripts that may depend on behaviors
+     * from the earlier history of JavaScript.
+     *
+     * <p>As of version 1.8, the Rhino community has no plans to continue to add new language
+     * versions, but instead plans to track the ECMAScript standard and add new features as the
+     * language evolves in new versions of Rhino, like other JavaScript engines. Projects that use
+     * Rhino are encouraged to migrate to the {@link #VERSION_ECMASCRIPT} version and stop relying
+     * on older behaviors of Rhino that are no longer compatible with ECMAScript.
      *
      * @param version the version as specified by VERSION_1_0, VERSION_1_1, etc.
      */
@@ -686,6 +743,7 @@ public class Context implements Closeable {
             case VERSION_1_7:
             case VERSION_1_8:
             case VERSION_ES6:
+            case VERSION_ECMASCRIPT:
                 return true;
         }
         return false;
@@ -952,28 +1010,36 @@ public class Context implements Closeable {
         return reportRuntimeError(msg);
     }
 
-    /** @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead */
+    /**
+     * @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead
+     */
     @Deprecated
     static EvaluatorException reportRuntimeError0(String messageId) {
         String msg = ScriptRuntime.getMessageById(messageId);
         return reportRuntimeError(msg);
     }
 
-    /** @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead */
+    /**
+     * @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead
+     */
     @Deprecated
     static EvaluatorException reportRuntimeError1(String messageId, Object arg1) {
         String msg = ScriptRuntime.getMessageById(messageId, arg1);
         return reportRuntimeError(msg);
     }
 
-    /** @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead */
+    /**
+     * @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead
+     */
     @Deprecated
     static EvaluatorException reportRuntimeError2(String messageId, Object arg1, Object arg2) {
         String msg = ScriptRuntime.getMessageById(messageId, arg1, arg2);
         return reportRuntimeError(msg);
     }
 
-    /** @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead */
+    /**
+     * @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead
+     */
     @Deprecated
     static EvaluatorException reportRuntimeError3(
             String messageId, Object arg1, Object arg2, Object arg3) {
@@ -981,7 +1047,9 @@ public class Context implements Closeable {
         return reportRuntimeError(msg);
     }
 
-    /** @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead */
+    /**
+     * @deprecated Use {@link #reportRuntimeErrorById(String messageId, Object... args)} instead
+     */
     @Deprecated
     static EvaluatorException reportRuntimeError4(
             String messageId, Object arg1, Object arg2, Object arg3, Object arg4) {
@@ -1354,6 +1422,16 @@ public class Context implements Closeable {
      */
     public final Script compileReader(
             Reader in, String sourceName, int lineno, Object securityDomain) throws IOException {
+        return compileReader(in, sourceName, lineno, securityDomain, null);
+    }
+
+    public Script compileReader(
+            Reader in,
+            String sourceName,
+            int lineno,
+            Object securityDomain,
+            Consumer<CompilerEnvirons> compilerEnvironsProcessor)
+            throws IOException {
         if (lineno < 0) {
             // For compatibility IllegalArgumentException can not be thrown here
             lineno = 0;
@@ -1368,7 +1446,8 @@ public class Context implements Closeable {
                         securityDomain,
                         false,
                         null,
-                        null);
+                        null,
+                        compilerEnvironsProcessor);
     }
 
     /**
@@ -1392,7 +1471,7 @@ public class Context implements Closeable {
             // For compatibility IllegalArgumentException can not be thrown here
             lineno = 0;
         }
-        return compileString(source, null, null, sourceName, lineno, securityDomain);
+        return compileString(source, null, null, sourceName, lineno, securityDomain, null);
     }
 
     final Script compileString(
@@ -1401,22 +1480,19 @@ public class Context implements Closeable {
             ErrorReporter compilationErrorReporter,
             String sourceName,
             int lineno,
-            Object securityDomain) {
-        try {
-            return (Script)
-                    compileImpl(
-                            null,
-                            source,
-                            sourceName,
-                            lineno,
-                            securityDomain,
-                            false,
-                            compiler,
-                            compilationErrorReporter);
-        } catch (IOException ioe) {
-            // Should not happen when dealing with source as string
-            throw new RuntimeException(ioe);
-        }
+            Object securityDomain,
+            Consumer<CompilerEnvirons> compilerEnvironsProcessor) {
+        return (Script)
+                compileImpl(
+                        null,
+                        source,
+                        sourceName,
+                        lineno,
+                        securityDomain,
+                        false,
+                        compiler,
+                        compilationErrorReporter,
+                        compilerEnvironsProcessor);
     }
 
     /**
@@ -1448,22 +1524,17 @@ public class Context implements Closeable {
             String sourceName,
             int lineno,
             Object securityDomain) {
-        try {
-            return (Function)
-                    compileImpl(
-                            scope,
-                            source,
-                            sourceName,
-                            lineno,
-                            securityDomain,
-                            true,
-                            compiler,
-                            compilationErrorReporter);
-        } catch (IOException ioe) {
-            // Should never happen because we just made the reader
-            // from a String
-            throw new RuntimeException(ioe);
-        }
+        return (Function)
+                compileImpl(
+                        scope,
+                        source,
+                        sourceName,
+                        lineno,
+                        securityDomain,
+                        true,
+                        compiler,
+                        compilationErrorReporter,
+                        null);
     }
 
     /**
@@ -1573,8 +1644,6 @@ public class Context implements Closeable {
     /**
      * Create an array with a specified initial length.
      *
-     * <p>
-     *
      * @param scope the scope to create the object in
      * @param length the initial length (JavaScript arrays may have additional properties added
      *     dynamically).
@@ -1650,8 +1719,6 @@ public class Context implements Closeable {
      * Convert the value to a JavaScript String value.
      *
      * <p>See ECMA 9.8.
-     *
-     * <p>
      *
      * @param value a JavaScript value
      * @return the corresponding String value converted using the ECMA rules
@@ -1876,14 +1943,11 @@ public class Context implements Closeable {
     /**
      * Specify whether or not debug information should be generated.
      *
-     * <p>Setting the generation of debug information on will set the optimization level to zero.
-     *
      * @since 1.3
      */
     public final void setGeneratingDebug(boolean generatingDebug) {
         if (sealed) onSealedMutation();
         generatingDebugChanged = true;
-        if (generatingDebug && getOptimizationLevel() > 0) setOptimizationLevel(0);
         this.generatingDebug = generatingDebug;
     }
 
@@ -1913,42 +1977,62 @@ public class Context implements Closeable {
     /**
      * Get the current optimization level.
      *
-     * <p>The optimization level is expressed as an integer between -1 and 9.
+     * <p>The optimization level is expressed as an integer between -1 and 9. Rhino now has only one
+     * optimization level, and we will always return either -1 or 9 here.
      *
      * @since 1.3
+     * @deprecated As of 1.8.0, use {@link #isInterpretedMode()} instead.
      */
+    @Deprecated
     public final int getOptimizationLevel() {
-        return optimizationLevel;
+        return interpretedMode ? -1 : 9;
+    }
+
+    /**
+     * Return whether Rhino is running in interpreted mode. In this mode, Rhino does not generate
+     * bytecode, but runs much more slowly. Some platforms, notably Android, use this mode.
+     */
+    public final boolean isInterpretedMode() {
+        return interpretedMode;
     }
 
     /**
      * Set the current optimization level.
      *
-     * <p>The optimization level is expected to be an integer between -1 and 9. Any negative values
-     * will be interpreted as -1, and any values greater than 9 will be interpreted as 9. An
-     * optimization level of -1 indicates that interpretive mode will always be used. Levels 0
-     * through 9 indicate that class files may be generated. Higher optimization levels trade off
-     * compile time performance for runtime performance. The optimizer level can't be set greater
-     * than -1 if the optimizer package doesn't exist at run time.
+     * <p>This function previously set multiple modes today. Any value less than zero sets up
+     * interpreted mode, and otherwise we run in compiled mode.
      *
      * @param optimizationLevel an integer indicating the level of optimization to perform
      * @since 1.3
+     * @deprecated As of 1.8.0, use {@link #setInterpretedMode(boolean)} instead.
      */
+    @Deprecated
     public final void setOptimizationLevel(int optimizationLevel) {
-        if (sealed) onSealedMutation();
-        if (optimizationLevel == -2) {
-            // To be compatible with Cocoon fork
-            optimizationLevel = -1;
-        }
-        checkOptimizationLevel(optimizationLevel);
-        if (codegenClass == null) optimizationLevel = -1;
-        this.optimizationLevel = optimizationLevel;
+        setInterpretedMode(optimizationLevel < 0);
     }
 
+    /**
+     * Set Rhino to run in interpreted mode. In this mode, Rhino does not generate bytecode, but
+     * runs much more slowly. Some platforms, notably Android, must use this mode because they
+     * cannot generate bytecode.
+     */
+    public final void setInterpretedMode(boolean interpretedMode) {
+        if (sealed) onSealedMutation();
+        this.interpretedMode = interpretedMode;
+    }
+
+    /**
+     * @deprecated As of 1.8.0, no longer has any use.
+     */
+    @Deprecated
     public static boolean isValidOptimizationLevel(int optimizationLevel) {
         return -1 <= optimizationLevel && optimizationLevel <= 9;
     }
 
+    /**
+     * @deprecated As of 1.8.0, no longer has any use.
+     */
+    @Deprecated
     public static void checkOptimizationLevel(int optimizationLevel) {
         if (isValidOptimizationLevel(optimizationLevel)) {
             return;
@@ -1989,9 +2073,9 @@ public class Context implements Closeable {
      */
     public final void setMaximumInterpreterStackDepth(int max) {
         if (sealed) onSealedMutation();
-        if (optimizationLevel != -1) {
+        if (!interpretedMode) {
             throw new IllegalStateException(
-                    "Cannot set maximumInterpreterStackDepth when optimizationLevel != -1");
+                    "Cannot set maximumInterpreterStackDepth outside interpreted mode");
         }
         if (max < 1) {
             throw new IllegalArgumentException(
@@ -2093,8 +2177,6 @@ public class Context implements Closeable {
 
     /**
      * Put a value that can later be retrieved using a given key.
-     *
-     * <p>
      *
      * @param key the key used to index the value
      * @param value the value to save
@@ -2231,11 +2313,18 @@ public class Context implements Closeable {
      * <p>The default implementation uses the implementation provided by this <code>Context</code>'s
      * {@link ContextFactory}.
      *
+     * <p>This is no longer used in E4X -- an implementation is only provided for backward
+     * compatibility.
+     *
      * @return An XMLLib.Factory. Should not return <code>null</code> if {@link #FEATURE_E4X} is
      *     enabled. See {@link #hasFeature}.
      */
+    @Deprecated
     public XMLLib.Factory getE4xImplementationFactory() {
-        return getFactory().getE4xImplementationFactory();
+        if (ScriptRuntime.xmlLoaderImpl != null) {
+            return ScriptRuntime.xmlLoaderImpl.getFactory();
+        }
+        return null;
     }
 
     /**
@@ -2422,8 +2511,8 @@ public class Context implements Closeable {
             Object securityDomain,
             boolean returnFunction,
             Evaluator compiler,
-            ErrorReporter compilationErrorReporter)
-            throws IOException {
+            ErrorReporter compilationErrorReporter,
+            Consumer<CompilerEnvirons> compilerEnvironProcessor) {
         if (sourceName == null) {
             sourceName = "unnamed script";
         }
@@ -2439,6 +2528,9 @@ public class Context implements Closeable {
         compilerEnv.initFromContext(this);
         if (compilationErrorReporter == null) {
             compilationErrorReporter = compilerEnv.getErrorReporter();
+        }
+        if (compilerEnvironProcessor != null) {
+            compilerEnvironProcessor.accept(compilerEnv);
         }
 
         ScriptNode tree =
@@ -2501,8 +2593,7 @@ public class Context implements Closeable {
             int lineno,
             CompilerEnvirons compilerEnv,
             ErrorReporter compilationErrorReporter,
-            boolean returnFunction)
-            throws IOException {
+            boolean returnFunction) {
         Parser p = new Parser(compilerEnv, compilationErrorReporter);
         if (returnFunction) {
             p.calledByCompileFunction = true;
@@ -2524,7 +2615,8 @@ public class Context implements Closeable {
             }
         }
 
-        IRFactory irf = new IRFactory(compilerEnv, sourceString, compilationErrorReporter);
+        IRFactory irf =
+                new IRFactory(compilerEnv, sourceName, sourceString, compilationErrorReporter);
         ScriptNode tree = irf.transformTree(ast);
 
         if (compilerEnv.isGeneratingSource()) {
@@ -2549,7 +2641,7 @@ public class Context implements Closeable {
 
     private Evaluator createCompiler() {
         Evaluator result = null;
-        if (optimizationLevel >= 0 && codegenClass != null) {
+        if (!interpretedMode && codegenClass != null) {
             result = (Evaluator) Kit.newInstanceOrNull(codegenClass);
         }
         if (result == null) {
@@ -2569,31 +2661,30 @@ public class Context implements Closeable {
             Evaluator evaluator = createInterpreter();
             if (evaluator != null) return evaluator.getSourcePositionFromStack(cx, linep);
         }
-        /**
-         * A bit of a hack, but the only way to get filename and line number from an enclosing
-         * frame.
-         */
-        StackTraceElement[] stackTrace = new Throwable().getStackTrace();
-        for (StackTraceElement st : stackTrace) {
-            String file = st.getFileName();
-            if (!(file == null || file.endsWith(".java"))) {
-                int line = st.getLineNumber();
-                if (line >= 0) {
-                    linep[0] = line;
-                    return file;
-                }
+
+        return getSourcePositionFromJavaStack(linep);
+    }
+
+    /** Returns the current filename in the java stack. */
+    static String getSourcePositionFromJavaStack(int[] linep) {
+        StackTraceElement[] stack = new Throwable().getStackTrace();
+        for (StackTraceElement e : stack) {
+            if (frameMatches(e)) {
+                linep[0] = e.getLineNumber();
+                return e.getFileName();
             }
         }
-
         return null;
     }
 
+    private static boolean frameMatches(StackTraceElement e) {
+        return (e.getFileName() == null || !e.getFileName().endsWith(".java"))
+                && e.getLineNumber() > 0;
+    }
+
     RegExpProxy getRegExpProxy() {
-        if (regExpProxy == null) {
-            Class<?> cl = Kit.classOrNull("org.mozilla.javascript.regexp.RegExpImpl");
-            if (cl != null) {
-                regExpProxy = (RegExpProxy) Kit.newInstanceOrNull(cl);
-            }
+        if (regExpProxy == null && regExpLoader != null) {
+            regExpProxy = regExpLoader.newProxy();
         }
         return regExpProxy;
     }
@@ -2692,7 +2783,7 @@ public class Context implements Closeable {
     private boolean generatingDebugChanged;
     private boolean generatingSource = true;
     boolean useDynamicScope;
-    private int optimizationLevel;
+    private boolean interpretedMode;
     private int maximumInterpreterStackDepth;
     private WrapFactory wrapFactory;
     Debugger debugger;

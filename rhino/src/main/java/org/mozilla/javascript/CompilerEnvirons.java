@@ -12,12 +12,12 @@ import org.mozilla.javascript.ast.ErrorCollector;
 public class CompilerEnvirons {
     public CompilerEnvirons() {
         errorReporter = DefaultErrorReporter.instance;
-        languageVersion = Context.VERSION_DEFAULT;
+        languageVersion = Context.VERSION_ES6;
         generateDebugInfo = true;
         reservedKeywordAsIdentifier = true;
         allowMemberExprAsFunctionName = false;
         xmlAvailable = true;
-        optimizationLevel = 0;
+        interpretedMode = false;
         generatingSource = true;
         strictMode = false;
         warningAsError = false;
@@ -35,7 +35,7 @@ public class CompilerEnvirons {
         warningAsError = cx.hasFeature(Context.FEATURE_WARNING_AS_ERROR);
         xmlAvailable = cx.hasFeature(Context.FEATURE_E4X);
 
-        optimizationLevel = cx.getOptimizationLevel();
+        interpretedMode = cx.isInterpretedMode();
 
         generatingSource = cx.isGeneratingSource();
         activationNames = cx.activationNames;
@@ -98,13 +98,30 @@ public class CompilerEnvirons {
         xmlAvailable = flag;
     }
 
+    /**
+     * @deprecated As of 1.8.0, use {@link #isInterpretedMode()} instead.
+     */
+    @Deprecated
     public final int getOptimizationLevel() {
-        return optimizationLevel;
+        return interpretedMode ? -1 : 9;
     }
 
+    public final boolean isInterpretedMode() {
+        return interpretedMode;
+    }
+
+    /**
+     * @deprecated As of 1.8.0, use {@link #setInterpretedMode(boolean)} instead.
+     */
+    @Deprecated
+    @SuppressWarnings("deprecation")
     public void setOptimizationLevel(int level) {
         Context.checkOptimizationLevel(level);
-        this.optimizationLevel = level;
+        interpretedMode = (level < 0);
+    }
+
+    public void setInterpretedMode(boolean interpretedMode) {
+        this.interpretedMode = interpretedMode;
     }
 
     public final boolean isGeneratingSource() {
@@ -142,7 +159,9 @@ public class CompilerEnvirons {
         this.generatingSource = generatingSource;
     }
 
-    /** @return true iff code will be generated with callbacks to enable instruction thresholds */
+    /**
+     * @return true iff code will be generated with callbacks to enable instruction thresholds
+     */
     public boolean isGenerateObserverCount() {
         return generateObserverCount;
     }
@@ -219,6 +238,15 @@ public class CompilerEnvirons {
         return allowSharpComments;
     }
 
+    /** Allows usage of "super" everywhere, simulating that we are inside a method. */
+    public void setAllowSuper(boolean allowSuper) {
+        this.allowSuper = allowSuper;
+    }
+
+    public boolean isAllowSuper() {
+        return allowSuper;
+    }
+
     /**
      * Returns a {@code CompilerEnvirons} suitable for using Rhino in an IDE environment. Most
      * features are enabled by default. The {@link ErrorReporter} is set to an {@link
@@ -244,7 +272,7 @@ public class CompilerEnvirons {
     private boolean reservedKeywordAsIdentifier;
     private boolean allowMemberExprAsFunctionName;
     private boolean xmlAvailable;
-    private int optimizationLevel;
+    private boolean interpretedMode;
     private boolean generatingSource;
     private boolean strictMode;
     private boolean warningAsError;
@@ -255,5 +283,6 @@ public class CompilerEnvirons {
     private boolean warnTrailingComma;
     private boolean ideMode;
     private boolean allowSharpComments;
+    private boolean allowSuper;
     Set<String> activationNames;
 }

@@ -319,6 +319,7 @@ public final class JavaAdapter implements IdFunctionCall {
         return adapterClass;
     }
 
+    @SuppressWarnings("AndroidJdkLibsChecker")
     public static byte[] createAdapterCode(
             Map<String, Integer> functionNames,
             String adapterName,
@@ -942,13 +943,13 @@ public final class JavaAdapter implements IdFunctionCall {
             throw Context.reportRuntimeErrorById(
                     "JavaAdapter can not subclass methods with more then" + " 64 arguments.");
         }
-        long convertionMask = 0;
+        long conversionMask = 0;
         for (int i = 0; i != parms.length; ++i) {
             if (!parms[i].isPrimitive()) {
-                convertionMask |= (1 << i);
+                conversionMask |= (1 << i);
             }
         }
-        cfw.addPush(convertionMask);
+        cfw.addPush(conversionMask);
 
         // go through utility method, which creates a Context to run the
         // method in.

@@ -27,7 +27,7 @@ public class NativePromise extends ScriptableObject {
     private ArrayList<Reaction> fulfillReactions = new ArrayList<>();
     private ArrayList<Reaction> rejectReactions = new ArrayList<>();
 
-    public static void init(Context cx, Scriptable scope, boolean sealed) {
+    public static Object init(Context cx, Scriptable scope, boolean sealed) {
         LambdaConstructor constructor =
                 new LambdaConstructor(
                         scope,
@@ -76,11 +76,10 @@ public class NativePromise extends ScriptableObject {
 
         constructor.definePrototypeProperty(
                 SymbolKey.TO_STRING_TAG, "Promise", DONTENUM | READONLY);
-
-        ScriptableObject.defineProperty(scope, "Promise", constructor, DONTENUM);
         if (sealed) {
             constructor.sealObject();
         }
+        return constructor;
     }
 
     private static Scriptable constructor(Context cx, Scriptable scope, Object[] args) {
@@ -688,7 +687,6 @@ public class NativePromise extends ScriptableObject {
             if (!(pc instanceof Constructable)) {
                 throw ScriptRuntime.typeErrorById("msg.constructor.expected");
             }
-            Constructable promiseConstructor = (Constructable) pc;
             LambdaFunction executorFunc =
                     new LambdaFunction(
                             topScope,
@@ -696,7 +694,7 @@ public class NativePromise extends ScriptableObject {
                             (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) ->
                                     executor(args));
 
-            promise = promiseConstructor.construct(topCx, topScope, new Object[] {executorFunc});
+            promise = ((Constructable) pc).construct(topCx, topScope, new Object[] {executorFunc});
 
             if (!(rawResolve instanceof Callable)) {
                 throw ScriptRuntime.typeErrorById("msg.function.expected");

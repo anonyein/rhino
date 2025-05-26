@@ -1,6 +1,6 @@
 package org.mozilla.javascript.tests;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
@@ -21,6 +21,7 @@ import org.mozilla.javascript.ClassShutter;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.SecurityController;
+import org.mozilla.javascript.testutils.Utils;
 import org.mozilla.javascript.tools.shell.Global;
 import org.mozilla.javascript.tools.shell.JavaPolicySecurity;
 
@@ -99,7 +100,7 @@ public class SecurityControllerTest {
             runScript(script, RESTRICT_IMPL_ACCESS);
             fail("EcmaError expected");
         } catch (EcmaError ee) {
-            assertEquals("TypeError: Cannot find function bar in object []. (#4)", ee.getMessage());
+            assertTrue(ee.getMessage().contains("Cannot find function bar"));
         }
 
         // try in allowed scope again
@@ -128,7 +129,7 @@ public class SecurityControllerTest {
 
     /** Compiles and runs the script with the given protection domain. */
     private void runScript(String scriptSourceText, ProtectionDomain pd) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 context -> {
                     context.setClassShutter(new PolicyClassShutter());
                     Scriptable scope = context.initStandardObjects(global);

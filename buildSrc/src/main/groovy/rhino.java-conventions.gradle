@@ -1,6 +1,16 @@
+// This file contains Gradle "conventions" that we use in all of our projects.
+// It is the appropriate set of conventions to use for modules that will not be
+// published, such as test modules.
+
 plugins {
     id 'java-library'
     id 'com.diffplug.spotless'
+}
+
+int testJavaVersion = -1
+String jv = System.getenv("RHINO_TEST_JAVA_VERSION")
+if (jv != null) {
+    testJavaVersion = Integer.parseInt(jv);
 }
 
 repositories {
@@ -13,15 +23,33 @@ dependencies {
     testImplementation "junit:junit:4.13.2"
     testRuntimeOnly "org.junit.vintage:junit-vintage-engine"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-    testImplementation "org.yaml:snakeyaml:1.33"
-    testImplementation "javax.xml.soap:javax.xml.soap-api:1.4.0"
+    testImplementation "org.hamcrest:hamcrest:3.0"
 }
 
-tasks.withType(JavaCompile) {
+tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
+    options.release = 11
     options.compilerArgs = [
         '-Xlint:deprecation,unchecked'
     ]
+}
+
+tasks.withType(Test).configureEach {
+    if (testJavaVersion > 0) {
+        // We get here if RHINO_TEST_JAVA_VERSION was set and if we did then
+        // we try to run the tests with that version if Gradle will let us
+        javaLauncher = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(testJavaVersion)
+        }
+    }
+
+    // Explicitly set locale, timezone, and encoding for all build and test phases
+    // to ensure consistent test execution no matter where. This affects many
+    // time- and date-related tests, which will fail otherwise.
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.timezone', 'America/Los_Angeles'
+    systemProperty 'file.encoding', 'UTF-8'
 }
 
 test {
@@ -30,11 +58,11 @@ test {
 
 spotless {
     // There is no version of googleJavaFormat that works for Java 11 and 17,
-    // and different versions format differently. For now, only run spotless on Java 11.
-    // This will have to be changed when Java 11 support is removed.
-    if (JavaVersion.current() == JavaVersion.VERSION_11) {
+    // and different versions format differently. We're using a version that
+    // requires at least Java 17.
+    if (JavaVersion.current() >= JavaVersion.VERSION_17) {
         java {
-            googleJavaFormat('1.10.0').aosp()
+            googleJavaFormat('1.23.0').aosp()
         }
     } else {
         System.out.println("Not running Spotless: Java language version is " + JavaVersion.current())

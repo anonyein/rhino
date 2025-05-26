@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.mozilla.javascript.config.RhinoConfig;
 
 /** The class of exceptions thrown by the JavaScript engine. */
 public abstract class RhinoException extends RuntimeException {
@@ -220,11 +221,11 @@ public abstract class RhinoException extends RuntimeException {
     /**
      * Get a string representing the script stack of this exception.
      *
-     * @deprecated the filter argument is ignored as we are able to recognize script stack elements
-     *     by our own. Use #getScriptStackTrace() instead.
      * @param filter ignored
      * @return a script stack dump
      * @since 1.6R6
+     * @deprecated the filter argument is ignored as we are able to recognize script stack elements
+     *     by our own. Use #getScriptStackTrace() instead.
      */
     @Deprecated
     public String getScriptStackTrace(FilenameFilter filter) {
@@ -374,7 +375,7 @@ public abstract class RhinoException extends RuntimeException {
     private static final long serialVersionUID = 1883500631321581169L;
 
     // Just for testing!
-    private static StackStyle stackStyle = StackStyle.RHINO;
+    private static StackStyle stackStyle = RhinoConfig.get("rhino.stack.style", StackStyle.RHINO);
 
     private String sourceName;
     private int lineNumber;
@@ -383,18 +384,4 @@ public abstract class RhinoException extends RuntimeException {
 
     Object interpreterStackInfo;
     int[] interpreterLineData;
-
-    // Allow us to override default stack style for debugging.
-    static {
-        String style = System.getProperty("rhino.stack.style");
-        if (style != null) {
-            if ("Rhino".equalsIgnoreCase(style)) {
-                stackStyle = StackStyle.RHINO;
-            } else if ("Mozilla".equalsIgnoreCase(style)) {
-                stackStyle = StackStyle.MOZILLA;
-            } else if ("V8".equalsIgnoreCase(style)) {
-                stackStyle = StackStyle.V8;
-            }
-        }
-    }
 }

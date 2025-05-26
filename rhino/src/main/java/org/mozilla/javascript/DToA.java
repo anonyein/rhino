@@ -387,7 +387,7 @@ class DToA {
         return (int) dBits;
     }
 
-    /* Return b * 5^k.  k must be nonnegative. */
+    /* Return b * 5^k.  k must be non negative. */
     // XXXX the C version built a cache of these
     static BigInteger pow5mult(BigInteger b, int k) {
         return b.multiply(BigInteger.valueOf(5).pow(k));
@@ -567,14 +567,14 @@ class DToA {
                 break;
             case 2:
                 leftright = false;
-                /* fall through */
+            /* fall through */
             case 4:
                 if (ndigits <= 0) ndigits = 1;
                 ilim = ilim1 = i = ndigits;
                 break;
             case 3:
                 leftright = false;
-                /* fall through */
+            /* fall through */
             case 5:
                 i = ndigits + k + 1;
                 ilim = i;
@@ -1095,7 +1095,7 @@ class DToA {
                 case DTOSTR_EXPONENTIAL:
                     //                    JS_ASSERT(precision > 0);
                     minNDigits = precision;
-                    /* fall through */
+                /* fall through */
                 case DTOSTR_STANDARD_EXPONENTIAL:
                     exponentialNotation = true;
                     break;

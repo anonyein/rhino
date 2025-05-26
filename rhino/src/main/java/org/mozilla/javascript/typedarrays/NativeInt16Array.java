@@ -7,7 +7,7 @@
 package org.mozilla.javascript.typedarrays;
 
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.IdFunctionObject;
+import org.mozilla.javascript.LambdaConstructor;
 import org.mozilla.javascript.ScriptRuntimeES6;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Undefined;
@@ -37,15 +37,32 @@ public class NativeInt16Array extends NativeTypedArrayView<Short> {
         return CLASS_NAME;
     }
 
-    public static void init(Context cx, Scriptable scope, boolean sealed) {
-        NativeInt16Array a = new NativeInt16Array();
-        IdFunctionObject constructor = a.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed);
-        ScriptRuntimeES6.addSymbolSpecies(cx, scope, constructor);
-    }
+    public static Object init(Context cx, Scriptable scope, boolean sealed) {
+        LambdaConstructor constructor =
+                new LambdaConstructor(
+                        scope,
+                        CLASS_NAME,
+                        3,
+                        LambdaConstructor.CONSTRUCTOR_NEW,
+                        (Context lcx, Scriptable lscope, Object[] args) ->
+                                NativeTypedArrayView.js_constructor(
+                                        lcx,
+                                        lscope,
+                                        args,
+                                        NativeInt16Array::new,
+                                        BYTES_PER_ELEMENT));
+        constructor.setPrototypePropertyAttributes(DONTENUM | READONLY | PERMANENT);
+        NativeTypedArrayView.init(cx, scope, constructor, NativeInt16Array::realThis);
+        constructor.defineProperty(
+                "BYTES_PER_ELEMENT", BYTES_PER_ELEMENT, DONTENUM | READONLY | PERMANENT);
+        constructor.definePrototypeProperty(
+                "BYTES_PER_ELEMENT", BYTES_PER_ELEMENT, DONTENUM | READONLY | PERMANENT);
 
-    @Override
-    protected NativeInt16Array construct(NativeArrayBuffer ab, int off, int len) {
-        return new NativeInt16Array(ab, off, len);
+        ScriptRuntimeES6.addSymbolSpecies(cx, scope, constructor);
+        if (sealed) {
+            constructor.sealObject();
+        }
+        return constructor;
     }
 
     @Override
@@ -53,9 +70,8 @@ public class NativeInt16Array extends NativeTypedArrayView<Short> {
         return BYTES_PER_ELEMENT;
     }
 
-    @Override
-    protected NativeInt16Array realThis(Scriptable thisObj, IdFunctionObject f) {
-        return ensureType(thisObj, NativeInt16Array.class, f);
+    private static NativeInt16Array realThis(Scriptable thisObj) {
+        return LambdaConstructor.convertThisObject(thisObj, NativeInt16Array.class);
     }
 
     @Override
@@ -80,17 +96,13 @@ public class NativeInt16Array extends NativeTypedArrayView<Short> {
 
     @Override
     public Short get(int i) {
-        if (checkIndex(i)) {
-            throw new IndexOutOfBoundsException();
-        }
+        ensureIndex(i);
         return (Short) js_get(i);
     }
 
     @Override
     public Short set(int i, Short aByte) {
-        if (checkIndex(i)) {
-            throw new IndexOutOfBoundsException();
-        }
+        ensureIndex(i);
         return (Short) js_set(i, aByte);
     }
 }

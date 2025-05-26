@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
@@ -51,7 +50,7 @@ import org.mozilla.javascript.debug.DebuggableObject;
  * @see org.mozilla.javascript.Scriptable
  * @author Norris Boyd
  */
-public abstract class ScriptableObject
+public abstract class ScriptableObject extends SlotMapOwner
         implements Scriptable, SymbolScriptable, Serializable, DebuggableObject, ConstProperties {
 
     private static final long serialVersionUID = 2829861078851942586L;
@@ -109,12 +108,6 @@ public abstract class ScriptableObject
     /** The parent scope of this object. */
     private Scriptable parentScopeObject;
 
-    /**
-     * This holds all the slots. It may or may not be thread-safe, and may expand itself to a
-     * different data structure depending on the size of the object.
-     */
-    private transient SlotMapContainer slotMap;
-
     // Where external array data is stored.
     private transient ExternalArrayData externalData;
 
@@ -157,24 +150,16 @@ public abstract class ScriptableObject
         }
     }
 
-    private static SlotMapContainer createSlotMap(int initialSize) {
-        Context cx = Context.getCurrentContext();
-        if ((cx != null) && cx.hasFeature(Context.FEATURE_THREAD_SAFE_OBJECTS)) {
-            return new ThreadSafeSlotMapContainer(initialSize);
-        }
-        return new SlotMapContainer(initialSize);
-    }
-
     public ScriptableObject() {
-        slotMap = createSlotMap(0);
+        super(0);
     }
 
     public ScriptableObject(Scriptable scope, Scriptable prototype) {
+        super(0);
         if (scope == null) throw new IllegalArgumentException();
 
         parentScopeObject = scope;
         prototypeObject = prototype;
-        slotMap = createSlotMap(0);
     }
 
     /**
@@ -205,7 +190,7 @@ public abstract class ScriptableObject
      */
     @Override
     public boolean has(String name, Scriptable start) {
-        return null != slotMap.query(name, 0);
+        return null != getMap().query(name, 0);
     }
 
     /**
@@ -220,13 +205,13 @@ public abstract class ScriptableObject
         if (externalData != null) {
             return (index < externalData.getArrayLength());
         }
-        return null != slotMap.query(null, index);
+        return null != getMap().query(null, index);
     }
 
     /** A version of "has" that supports symbols. */
     @Override
     public boolean has(Symbol key, Scriptable start) {
-        return null != slotMap.query(key, 0);
+        return null != getMap().query(key, 0);
     }
 
     /**
@@ -240,7 +225,7 @@ public abstract class ScriptableObject
      */
     @Override
     public Object get(String name, Scriptable start) {
-        Slot slot = slotMap.query(name, 0);
+        Slot slot = getMap().query(name, 0);
         if (slot == null) {
             return Scriptable.NOT_FOUND;
         }
@@ -263,7 +248,7 @@ public abstract class ScriptableObject
             return Scriptable.NOT_FOUND;
         }
 
-        Slot slot = slotMap.query(null, index);
+        Slot slot = getMap().query(null, index);
         if (slot == null) {
             return Scriptable.NOT_FOUND;
         }
@@ -273,7 +258,7 @@ public abstract class ScriptableObject
     /** Another version of Get that supports Symbol keyed properties. */
     @Override
     public Object get(Symbol key, Scriptable start) {
-        Slot slot = slotMap.query(key, 0);
+        Slot slot = getMap().query(key, 0);
         if (slot == null) {
             return Scriptable.NOT_FOUND;
         }
@@ -294,10 +279,21 @@ public abstract class ScriptableObject
      */
     @Override
     public void put(String name, Scriptable start, Object value) {
-        if (putImpl(name, 0, start, value)) return;
+        if (putOwnProperty(name, start, value, Context.isCurrentContextStrict())) return;
 
         if (start == this) throw Kit.codeBug();
         start.put(name, start, value);
+    }
+
+    /**
+     * Set the value of the named property, and return true if the property is actually defined and
+     * can be set. Subclasses of ScriptableObject should override this method, and not "put," for
+     * proper strict mode operation in the future.
+     *
+     * @param isThrow if true, throw an exception as if in strict mode
+     */
+    protected boolean putOwnProperty(String name, Scriptable start, Object value, boolean isThrow) {
+        return putImpl(name, 0, start, value, isThrow);
     }
 
     /**
@@ -326,19 +322,41 @@ public abstract class ScriptableObject
             return;
         }
 
-        if (putImpl(null, index, start, value)) return;
+        if (putOwnProperty(index, start, value, Context.isCurrentContextStrict())) return;
 
         if (start == this) throw Kit.codeBug();
         start.put(index, start, value);
     }
 
+    /**
+     * Set the value of the named property, and return true if the property is actually defined and
+     * can be set. Subclasses of ScriptableObject should override this method, and not "put," for
+     * proper strict mode operation in the future
+     *
+     * @param isThrow if true, throw an exception as if in strict mode
+     */
+    protected boolean putOwnProperty(int index, Scriptable start, Object value, boolean isThrow) {
+        return putImpl(null, index, start, value, isThrow);
+    }
+
     /** Implementation of put required by SymbolScriptable objects. */
     @Override
     public void put(Symbol key, Scriptable start, Object value) {
-        if (putImpl(key, 0, start, value)) return;
+        if (putOwnProperty(key, start, value, Context.isCurrentContextStrict())) return;
 
         if (start == this) throw Kit.codeBug();
         ensureSymbolScriptable(start).put(key, start, value);
+    }
+
+    /**
+     * Set the value of the named property, and return true if the property is actually defined and
+     * can be set. Subclasses of ScriptableObject should override this method, and not "put," for
+     * proper strict mode operation in the future
+     *
+     * @param isThrow if true, throw an exception as if in strict mode
+     */
+    protected boolean putOwnProperty(Symbol key, Scriptable start, Object value, boolean isThrow) {
+        return putImpl(key, 0, start, value, isThrow);
     }
 
     /**
@@ -351,7 +369,7 @@ public abstract class ScriptableObject
     @Override
     public void delete(String name) {
         checkNotSealed(name, 0);
-        slotMap.compute(name, 0, ScriptableObject::checkSlotRemoval);
+        getMap().compute(this, name, 0, ScriptableObject::checkSlotRemoval);
     }
 
     /**
@@ -364,14 +382,14 @@ public abstract class ScriptableObject
     @Override
     public void delete(int index) {
         checkNotSealed(null, index);
-        slotMap.compute(null, index, ScriptableObject::checkSlotRemoval);
+        getMap().compute(this, null, index, ScriptableObject::checkSlotRemoval);
     }
 
     /** Removes an object like the others, but using a Symbol as the key. */
     @Override
     public void delete(Symbol key) {
         checkNotSealed(key, 0);
-        slotMap.compute(key, 0, ScriptableObject::checkSlotRemoval);
+        getMap().compute(this, key, 0, ScriptableObject::checkSlotRemoval);
     }
 
     private static Slot checkSlotRemoval(Object key, int index, Slot slot) {
@@ -420,12 +438,12 @@ public abstract class ScriptableObject
     /**
      * Returns true if the named property is defined as a const on this object.
      *
-     * @param name
+     * @param name the name of the property
      * @return true if the named property is defined as a const, false otherwise.
      */
     @Override
     public boolean isConst(String name) {
-        Slot slot = slotMap.query(name, 0);
+        Slot slot = getMap().query(name, 0);
         if (slot == null) {
             return false;
         }
@@ -472,8 +490,6 @@ public abstract class ScriptableObject
      * Get the attributes of a named property.
      *
      * <p>The property is specified by <code>name</code> as defined for <code>has</code>.
-     *
-     * <p>
      *
      * @param name the identifier for the property
      * @return the bitset of attributes
@@ -528,7 +544,7 @@ public abstract class ScriptableObject
      */
     public void setAttributes(String name, int attributes) {
         checkNotSealed(name, 0);
-        Slot attrSlot = slotMap.modify(name, 0, 0);
+        Slot attrSlot = getMap().modify(this, name, 0, 0);
         attrSlot.setAttributes(attributes);
     }
 
@@ -546,29 +562,29 @@ public abstract class ScriptableObject
      */
     public void setAttributes(int index, int attributes) {
         checkNotSealed(null, index);
-        Slot attrSlot = slotMap.modify(null, index, 0);
+        Slot attrSlot = getMap().modify(this, null, index, 0);
         attrSlot.setAttributes(attributes);
     }
 
     /** Set attributes of a Symbol-keyed property. */
     public void setAttributes(Symbol key, int attributes) {
         checkNotSealed(key, 0);
-        Slot attrSlot = slotMap.modify(key, 0, 0);
+        Slot attrSlot = getMap().modify(this, key, 0, 0);
         attrSlot.setAttributes(attributes);
     }
 
     /** Implement the legacy "__defineGetter__" and "__defineSetter__" methods. */
     public void setGetterOrSetter(
-            String name, int index, Callable getterOrSetter, boolean isSetter) {
-        if (name != null && index != 0) throw new IllegalArgumentException(name);
+            Object name, int index, Callable getterOrSetter, boolean isSetter) {
+        if (name != null && index != 0) throw new IllegalArgumentException(name.toString());
         checkNotSealed(name, index);
 
         AccessorSlot aSlot;
         if (isExtensible()) {
             // Create a new AccessorSlot, or cast it if it's already set
-            aSlot = slotMap.compute(name, index, ScriptableObject::ensureAccessorSlot);
+            aSlot = getMap().compute(this, name, index, ScriptableObject::ensureAccessorSlot);
         } else {
-            Slot slot = slotMap.query(name, index);
+            Slot slot = getMap().query(name, index);
             if (slot instanceof AccessorSlot) {
                 aSlot = (AccessorSlot) slot;
             } else {
@@ -614,7 +630,7 @@ public abstract class ScriptableObject
      */
     public Object getGetterOrSetter(String name, int index, Scriptable scope, boolean isSetter) {
         if (name != null && index != 0) throw new IllegalArgumentException(name);
-        Slot slot = slotMap.query(name, index);
+        Slot slot = getMap().query(name, index);
         if (slot == null) return null;
         Function getterOrSetter =
                 isSetter
@@ -650,14 +666,22 @@ public abstract class ScriptableObject
      * @return whether the property is a getter or a setter
      */
     protected boolean isGetterOrSetter(String name, int index, boolean setter) {
-        Slot slot = slotMap.query(name, index);
+        Slot slot = getMap().query(name, index);
         return (slot != null && slot.isSetterSlot());
     }
 
     void addLazilyInitializedValue(String name, int index, LazilyLoadedCtor init, int attributes) {
         if (name != null && index != 0) throw new IllegalArgumentException(name);
         checkNotSealed(name, index);
-        LazyLoadSlot lslot = slotMap.compute(name, index, ScriptableObject::ensureLazySlot);
+        LazyLoadSlot lslot = getMap().compute(this, name, index, ScriptableObject::ensureLazySlot);
+        lslot.setAttributes(attributes);
+        lslot.value = init;
+    }
+
+    void addLazilyInitializedValue(Symbol key, int index, LazilyLoadedCtor init, int attributes) {
+        if (key != null && index != 0) throw new IllegalArgumentException(key.toString());
+        checkNotSealed(key, index);
+        LazyLoadSlot lslot = getMap().compute(this, key, index, ScriptableObject::ensureLazySlot);
         lslot.setAttributes(attributes);
         lslot.value = init;
     }
@@ -730,8 +754,6 @@ public abstract class ScriptableObject
      * Returns an array of ids for the properties of the object.
      *
      * <p>Any properties with the attribute DONTENUM are not listed.
-     *
-     * <p>
      *
      * @return an array of java.lang.Objects with an entry for every listed property. Properties
      *     accessed via an integer index will have a corresponding Integer entry in the returned
@@ -831,14 +853,24 @@ public abstract class ScriptableObject
         // chasing. This will be overridden in NativeFunction and non-JS
         // objects.
 
+        Context cx = Context.getCurrentContext();
+        Object hasInstance = ScriptRuntime.getObjectElem(this, SymbolKey.HAS_INSTANCE, cx);
+        if (hasInstance instanceof Callable) {
+            return ScriptRuntime.toBoolean(
+                    ((Callable) hasInstance).call(cx, getParentScope(), this, new Object[] {this}));
+        }
+        if (!(this instanceof Callable)) {
+            throw ScriptRuntime.typeErrorById("msg.instanceof.bad.target");
+        }
         return ScriptRuntime.jsDelegatesTo(instance, this);
     }
 
     /**
      * Emulate the SpiderMonkey (and Firefox) feature of allowing custom objects to avoid detection
-     * by normal "object detection" code patterns. This is used to implement document.all. See
-     * https://bugzilla.mozilla.org/show_bug.cgi?id=412247. This is an analog to JOF_DETECTING from
-     * SpiderMonkey; see https://bugzilla.mozilla.org/show_bug.cgi?id=248549. Other than this
+     * by normal "object detection" code patterns. This is used to implement document.all. See <a
+     * href="https://bugzilla.mozilla.org/show_bug.cgi?id=412247">bug 412247</a>. This is an analog
+     * to JOF_DETECTING from SpiderMonkey; see <a
+     * href="https://bugzilla.mozilla.org/show_bug.cgi?id=248549">bug 248549</a>. Other than this
      * special case, embeddings should return false.
      *
      * @return true if this object should avoid object detection
@@ -935,8 +967,6 @@ public abstract class ScriptableObject
      *
      * it will be called to finish any initialization. The <code>scope</code> argument will be
      * passed, along with the newly created constructor and the newly created prototype.
-     *
-     * <p>
      *
      * @param scope The scope in which to define the constructor.
      * @param clazz The Java class to use to define the JavaScript objects and properties.
@@ -1345,12 +1375,23 @@ public abstract class ScriptableObject
         so.defineProperty(propertyName, value, attributes);
     }
 
-    /** Utility method to add lambda properties to arbitrary Scriptable object. */
-    protected void defineProperty(
+    /**
+     * Utility method to add lambda properties to arbitrary Scriptable object.
+     *
+     * @param scope ScriptableObject to define the property on
+     * @param name the name of the property to define.
+     * @param length the arity of the function
+     * @param target an object that implements the function in Java. Since Callable is a
+     *     single-function interface this will typically be implemented as a lambda.
+     * @param attributes the attributes of the JavaScript property
+     * @param propertyAttributes Sets the attributes of the "name", "length", and "arity" properties
+     *     of the internal LambdaFunction, which differ for many * native objects.
+     */
+    public void defineProperty(
             Scriptable scope,
             String name,
             int length,
-            Callable target,
+            SerializableCallable target,
             int attributes,
             int propertyAttributes) {
         LambdaFunction f = new LambdaFunction(scope, name, length, target);
@@ -1380,8 +1421,6 @@ public abstract class ScriptableObject
      *
      * <p>The getter must be a method with zero parameters, and the setter, if found, must be a
      * method with one parameter.
-     *
-     * <p>
      *
      * @param propertyName the name of the property to define. This name also affects the name of
      *     the setter and getter to search for. If the propertyId is "foo", then <code>clazz</code>
@@ -1538,7 +1577,8 @@ public abstract class ScriptableObject
             }
         }
 
-        AccessorSlot aSlot = slotMap.compute(propertyName, 0, ScriptableObject::ensureAccessorSlot);
+        AccessorSlot aSlot =
+                getMap().compute(this, propertyName, 0, ScriptableObject::ensureAccessorSlot);
         aSlot.setAttributes(attributes);
         if (getterBox != null) {
             aSlot.getter = new AccessorSlot.MemberBoxGetter(getterBox);
@@ -1575,22 +1615,24 @@ public abstract class ScriptableObject
      * @param id the name/index of the property
      * @param desc the new property descriptor, as described in 8.6.1
      */
-    public void defineOwnProperty(Context cx, Object id, ScriptableObject desc) {
+    public boolean defineOwnProperty(Context cx, Object id, ScriptableObject desc) {
         checkPropertyDefinition(desc);
-        defineOwnProperty(cx, id, desc, true);
+        return defineOwnProperty(cx, id, desc, true);
     }
 
     /**
      * Defines a property on an object.
      *
-     * <p>Based on [[DefineOwnProperty]] from 8.12.10 of the spec.
+     * <p>Based on [[DefineOwnProperty]] from 8.12.10 of the spec. see <a
+     * href="https://tc39.es/ecma262/#table-essential-internal-methods">[[DefineOwnProperty]]</a>
      *
      * @param cx the current Context
      * @param id the name/index of the property
      * @param desc the new property descriptor, as described in 8.6.1
      * @param checkValid whether to perform validity checks
+     * @return always true at the moment
      */
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object id, ScriptableObject desc, boolean checkValid) {
 
         Object key = null;
@@ -1606,67 +1648,116 @@ public abstract class ScriptableObject
             }
         }
 
+        Slot aSlot = getMap().query(key, index);
+        if (aSlot instanceof BuiltInSlot) {
+            // 10.4.2.4 ArrayLengthSet requires we check that any new
+            // value is valid and throw a range error if not before
+            // checking attrributes. It also specifies subtly
+            // different behaviour round non-writable slots and the
+            // presence of "value", so we'll let such slots define
+            // their own semantics.
+
+            // We do this outside the compute block as some tests
+            // modify the current descriptor as part of operations
+            // performed as part of applying the descriptor.
+
+            return ((BuiltInSlot<?>) aSlot).applyNewDescriptor(id, desc, checkValid, key, index);
+        } else {
+            return defineOrdinaryProperty(this, id, desc, checkValid, key, index);
+        }
+    }
+
+    static boolean defineOrdinaryProperty(
+            ScriptableObject owner,
+            Object id,
+            ScriptableObject desc,
+            boolean checkValid,
+            Object key,
+            int index) {
+        // this property lookup cannot happen from inside getMap().compute lambda
+        // as it risks causing a deadlock if ThreadSafeSlotMapContainer is used
+        // and `this` is in prototype chain of `desc`
+        Object enumerable = getProperty(desc, "enumerable");
+        Object writable = getProperty(desc, "writable");
+        Object configurable = getProperty(desc, "configurable");
+        Object getter = getProperty(desc, "get");
+        Object setter = getProperty(desc, "set");
+        Object value = getProperty(desc, "value");
+        boolean accessorDescriptor = isAccessorDescriptor(desc);
+
         // Do some complex stuff depending on whether or not the key
         // already exists in a single hash map operation
-        slotMap.compute(
-                key,
-                index,
-                (k, ix, existing) -> {
-                    if (checkValid) {
-                        ScriptableObject current =
-                                existing == null ? null : existing.getPropertyDescriptor(cx, this);
-                        checkPropertyChange(id, current, desc);
-                    }
+        owner.getMap()
+                .compute(
+                        owner,
+                        key,
+                        index,
+                        (k, ix, existing) -> {
+                            if (checkValid) {
+                                owner.checkPropertyChangeForSlot(id, existing, desc);
+                            }
 
-                    Slot slot;
-                    int attributes;
+                            Slot slot;
+                            int attributes;
 
-                    if (existing == null) {
-                        slot = new Slot(k, ix, 0);
-                        attributes =
-                                applyDescriptorToAttributeBitset(
-                                        DONTENUM | READONLY | PERMANENT, desc);
-                    } else {
-                        slot = existing;
-                        attributes =
-                                applyDescriptorToAttributeBitset(existing.getAttributes(), desc);
-                    }
+                            if (existing == null) {
+                                slot = new Slot(k, ix, 0);
+                                attributes =
+                                        applyDescriptorToAttributeBitset(
+                                                DONTENUM | READONLY | PERMANENT,
+                                                enumerable,
+                                                writable,
+                                                configurable);
+                            } else {
+                                slot = existing;
+                                attributes =
+                                        applyDescriptorToAttributeBitset(
+                                                existing.getAttributes(),
+                                                enumerable,
+                                                writable,
+                                                configurable);
+                            }
 
-                    if (isAccessorDescriptor(desc)) {
-                        AccessorSlot fslot;
-                        if (slot instanceof AccessorSlot) {
-                            fslot = (AccessorSlot) slot;
-                        } else {
-                            fslot = new AccessorSlot(slot);
-                            slot = fslot;
-                        }
-                        Object getter = getProperty(desc, "get");
-                        if (getter != NOT_FOUND) {
-                            fslot.getter = new AccessorSlot.FunctionGetter(getter);
-                        }
-                        Object setter = getProperty(desc, "set");
-                        if (setter != NOT_FOUND) {
-                            fslot.setter = new AccessorSlot.FunctionSetter(setter);
-                        }
-                        fslot.value = Undefined.instance;
-                    } else {
-                        if (!slot.isValueSlot() && isDataDescriptor(desc)) {
-                            // Replace a non-base slot with a regular slot
-                            slot = new Slot(slot);
-                        }
-                        Object value = getProperty(desc, "value");
-                        if (value != NOT_FOUND) {
-                            slot.value = value;
-                        } else if (existing == null) {
-                            // Ensure we don't get a zombie value if we have switched a lot
-                            slot.value = Undefined.instance;
-                        }
-                    }
+                            if (accessorDescriptor) {
+                                AccessorSlot fslot;
+                                if (slot instanceof AccessorSlot) {
+                                    fslot = (AccessorSlot) slot;
+                                } else {
+                                    fslot = new AccessorSlot(slot);
+                                    slot = fslot;
+                                }
+                                if (getter != NOT_FOUND) {
+                                    fslot.getter = new AccessorSlot.FunctionGetter(getter);
+                                }
 
-                    // After all that, whatever we return now ends up in the map
-                    slot.setAttributes(attributes);
-                    return slot;
-                });
+                                if (setter != NOT_FOUND) {
+                                    fslot.setter = new AccessorSlot.FunctionSetter(setter);
+                                }
+                                fslot.value = Undefined.instance;
+                            } else if (slot instanceof BuiltInSlot) {
+                                if (value != NOT_FOUND) {
+                                    ((BuiltInSlot<?>) slot)
+                                            .setValueFromDescriptor(value, owner, owner, true);
+                                }
+                            } else {
+                                if (!slot.isValueSlot() && isDataDescriptor(desc)) {
+                                    // Replace a non-base slot with a regular slot
+                                    slot = new Slot(slot);
+                                }
+
+                                if (value != NOT_FOUND) {
+                                    slot.value = value;
+                                } else if (existing == null) {
+                                    // Ensure we don't get a zombie value if we have switched a lot
+                                    slot.value = Undefined.instance;
+                                }
+                            }
+
+                            // After all that, whatever we return now ends up in the map
+                            slot.setAttributes(attributes);
+                            return slot;
+                        });
+        return true;
     }
 
     /**
@@ -1685,19 +1776,35 @@ public abstract class ScriptableObject
      */
     public void defineProperty(
             String name, Supplier<Object> getter, Consumer<Object> setter, int attributes) {
-        LambdaSlot slot = slotMap.compute(name, 0, ScriptableObject::ensureLambdaSlot);
+        LambdaSlot slot = getMap().compute(this, name, 0, ScriptableObject::ensureLambdaSlot);
         slot.setAttributes(attributes);
         slot.getter = getter;
         slot.setter = setter;
     }
 
     /**
+     * This is a single method interface suitable to be implemented as a lambda. It's used in the
+     * "defineProperty" method.
+     */
+    public interface LambdaGetterFunction extends Serializable {
+        Object apply(Scriptable scope);
+    }
+
+    /**
+     * This is a single method interface suitable to be implemented as a lambda. It's used in the
+     * "defineProperty" method.
+     */
+    public interface LambdaSetterFunction extends Serializable {
+        void accept(Scriptable scope, Object value);
+    }
+
+    /**
      * Define a property on this object that is implemented using lambda functions accepting
      * Scriptable `this` object as first parameter. Unlike with `defineProperty(String name,
-     * Supplier<Object> getter, Consumer<Object> setter, int attributes)` where getter and setter
-     * need to have access to target object instance, this allows for defining properties on
-     * LambdaConstructor prototype providing getter and setter logic with java instance methods. If
-     * a property with the same name already exists, then it will be replaced. This property will
+     * Supplier&lt;Object&gt; getter, Consumer&lt;Object&gt; setter, int attributes)` where getter
+     * and setter need to have access to target object instance, this allows for defining properties
+     * on LambdaConstructor prototype providing getter and setter logic with java instance methods.
+     * If a property with the same name already exists, then it will be replaced. This property will
      * appear to the JavaScript user exactly like descriptor with a getter and setter, just as if
      * they had been defined in JavaScript using Object.defineOwnProperty.
      *
@@ -1712,36 +1819,76 @@ public abstract class ScriptableObject
     public void defineProperty(
             Context cx,
             String name,
-            java.util.function.Function<Scriptable, Object> getter,
-            BiConsumer<Scriptable, Object> setter,
+            LambdaGetterFunction getter,
+            LambdaSetterFunction setter,
             int attributes) {
         if (getter == null && setter == null)
             throw ScriptRuntime.typeError("at least one of {getter, setter} is required");
 
-        slotMap.compute(
-                name,
-                0,
-                (id, index, existing) ->
-                        ensureLambdaAccessorSlot(
-                                cx, id, index, existing, getter, setter, attributes));
+        LambdaAccessorSlot newSlot = createLambdaAccessorSlot(name, 0, getter, setter, attributes);
+        replaceLambdaAccessorSlot(cx, name, newSlot);
+    }
+
+    public void defineProperty(
+            Context cx, String name, LambdaGetterFunction getter, int attributes) {
+        defineProperty(cx, name, getter, null, attributes);
+    }
+
+    public void defineProperty(
+            Context cx,
+            Symbol key,
+            LambdaGetterFunction getter,
+            LambdaSetterFunction setter,
+            int attributes) {
+        if (getter == null && setter == null)
+            throw ScriptRuntime.typeError("at least one of {getter, setter} is required");
+
+        LambdaAccessorSlot newSlot = createLambdaAccessorSlot(key, 0, getter, setter, attributes);
+        replaceLambdaAccessorSlot(cx, key, newSlot);
+    }
+
+    private void replaceLambdaAccessorSlot(Context cx, Object key, LambdaAccessorSlot newSlot) {
+        ScriptableObject newDesc = newSlot.buildPropertyDescriptor(cx);
+        checkPropertyDefinition(newDesc);
+        getMap().compute(
+                        this,
+                        key,
+                        0,
+                        (id, index, existing) -> {
+                            if (existing != null) {
+                                // it's dangerous to use `this` as scope inside slotMap.compute.
+                                // It can cause deadlock when ThreadSafeSlotMapContainer is used
+
+                                return replaceExistingLambdaSlot(cx, key, existing, newSlot);
+                            }
+                            checkPropertyChangeForSlot(key, null, newDesc);
+                            return newSlot;
+                        });
+    }
+
+    private LambdaAccessorSlot replaceExistingLambdaSlot(
+            Context cx, Object key, Slot existing, LambdaAccessorSlot newSlot) {
+        LambdaAccessorSlot replacedSlot;
+        if (existing instanceof LambdaAccessorSlot) {
+            replacedSlot = (LambdaAccessorSlot) existing;
+        } else {
+            replacedSlot = new LambdaAccessorSlot(existing);
+        }
+
+        replacedSlot.replaceWith(newSlot);
+        var replacedDesc = replacedSlot.buildPropertyDescriptor(cx);
+
+        checkPropertyChangeForSlot(key, existing, replacedDesc);
+        return replacedSlot;
     }
 
     private LambdaAccessorSlot createLambdaAccessorSlot(
             Object name,
             int index,
-            Slot existing,
-            java.util.function.Function<Scriptable, Object> getter,
-            BiConsumer<Scriptable, Object> setter,
+            LambdaGetterFunction getter,
+            LambdaSetterFunction setter,
             int attributes) {
-        LambdaAccessorSlot slot;
-        if (existing == null) {
-            slot = new LambdaAccessorSlot(name, index);
-        } else if (existing instanceof LambdaAccessorSlot) {
-            slot = (LambdaAccessorSlot) existing;
-        } else {
-            slot = new LambdaAccessorSlot(existing);
-        }
-
+        LambdaAccessorSlot slot = new LambdaAccessorSlot(name, index);
         slot.setGetter(this, getter);
         slot.setSetter(this, setter);
         slot.setAttributes(attributes);
@@ -1762,46 +1909,49 @@ public abstract class ScriptableObject
         }
     }
 
-    protected void checkPropertyChange(Object id, ScriptableObject current, ScriptableObject desc) {
+    protected final void checkPropertyChangeForSlot(
+            Object id, Slot current, ScriptableObject desc) {
         if (current == null) { // new property
             if (!isExtensible()) throw ScriptRuntime.typeErrorById("msg.not.extensible");
         } else {
-            if (isFalse(current.get("configurable", current))) {
+            if ((current.getAttributes() & PERMANENT) != 0) {
                 if (isTrue(getProperty(desc, "configurable")))
                     throw ScriptRuntime.typeErrorById("msg.change.configurable.false.to.true", id);
-                if (isTrue(current.get("enumerable", current))
+                if (((current.getAttributes() & DONTENUM) == 0)
                         != isTrue(getProperty(desc, "enumerable")))
                     throw ScriptRuntime.typeErrorById(
                             "msg.change.enumerable.with.configurable.false", id);
                 boolean isData = isDataDescriptor(desc);
+                boolean isBuiltIn = current instanceof BuiltInSlot;
                 boolean isAccessor = isAccessorDescriptor(desc);
                 if (!isData && !isAccessor) {
                     // no further validation required for generic descriptor
-                } else if (isData && isDataDescriptor(current)) {
-                    if (isFalse(current.get("writable", current))) {
+                } else if (isData) {
+                    if ((current.getAttributes() & READONLY) != 0) {
                         if (isTrue(getProperty(desc, "writable")))
                             throw ScriptRuntime.typeErrorById(
                                     "msg.change.writable.false.to.true.with.configurable.false",
                                     id);
-
-                        if (!sameValue(getProperty(desc, "value"), current.get("value", current)))
+                        var currentValue =
+                                isBuiltIn
+                                        ? ((BuiltInSlot<?>) current).getValue(null)
+                                        : current.value;
+                        if (!sameValue(getProperty(desc, "value"), currentValue))
                             throw ScriptRuntime.typeErrorById(
                                     "msg.change.value.with.writable.false", id);
                     }
-                } else if (isAccessor && isAccessorDescriptor(current)) {
-                    if (!sameValue(getProperty(desc, "set"), current.get("set", current)))
+                } else if (isAccessor && current instanceof AccessorSlot) {
+                    AccessorSlot accessor = (AccessorSlot) current;
+                    if (!accessor.isSameSetterFunction(getProperty(desc, "set")))
                         throw ScriptRuntime.typeErrorById(
                                 "msg.change.setter.with.configurable.false", id);
 
-                    if (!sameValue(getProperty(desc, "get"), current.get("get", current)))
+                    if (!accessor.isSameGetterFunction(getProperty(desc, "get")))
                         throw ScriptRuntime.typeErrorById(
                                 "msg.change.getter.with.configurable.false", id);
                 } else {
-                    if (isDataDescriptor(current))
-                        throw ScriptRuntime.typeErrorById(
-                                "msg.change.property.data.to.accessor.with.configurable.false", id);
                     throw ScriptRuntime.typeErrorById(
-                            "msg.change.property.accessor.to.data.with.configurable.false", id);
+                            "msg.change.property.data.to.accessor.with.configurable.false", id);
                 }
             }
         }
@@ -1844,8 +1994,8 @@ public abstract class ScriptableObject
         return ScriptRuntime.shallowEq(currentValue, newValue);
     }
 
-    protected int applyDescriptorToAttributeBitset(int attributes, ScriptableObject desc) {
-        Object enumerable = getProperty(desc, "enumerable");
+    protected static int applyDescriptorToAttributeBitset(
+            int attributes, Object enumerable, Object writable, Object configurable) {
         if (enumerable != NOT_FOUND) {
             attributes =
                     ScriptRuntime.toBoolean(enumerable)
@@ -1853,7 +2003,6 @@ public abstract class ScriptableObject
                             : attributes | DONTENUM;
         }
 
-        Object writable = getProperty(desc, "writable");
         if (writable != NOT_FOUND) {
             attributes =
                     ScriptRuntime.toBoolean(writable)
@@ -1861,7 +2010,6 @@ public abstract class ScriptableObject
                             : attributes | READONLY;
         }
 
-        Object configurable = getProperty(desc, "configurable");
         if (configurable != NOT_FOUND) {
             attributes =
                     ScriptRuntime.toBoolean(configurable)
@@ -1898,7 +2046,7 @@ public abstract class ScriptableObject
      * @param desc a property descriptor
      * @return true if this is a generic descriptor.
      */
-    protected boolean isGenericDescriptor(ScriptableObject desc) {
+    protected static boolean isGenericDescriptor(ScriptableObject desc) {
         return !isDataDescriptor(desc) && !isAccessorDescriptor(desc);
     }
 
@@ -1923,6 +2071,13 @@ public abstract class ScriptableObject
             return (ScriptableObject) ((Delegator) arg).getDelegee();
         }
         throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.typeof(arg));
+    }
+
+    protected static ScriptableObject ensureScriptableObjectButNotSymbol(Object arg) {
+        if (arg instanceof Symbol) {
+            throw ScriptRuntime.typeErrorById("msg.arg.not.object", ScriptRuntime.typeof(arg));
+        }
+        return ensureScriptableObject(arg);
     }
 
     /**
@@ -2029,8 +2184,9 @@ public abstract class ScriptableObject
         return isExtensible;
     }
 
-    public void preventExtensions() {
+    public boolean preventExtensions() {
         isExtensible = false;
+        return true;
     }
 
     /**
@@ -2066,9 +2222,9 @@ public abstract class ScriptableObject
             }
             toInitialize.clear();
 
-            long stamp = slotMap.readLock();
+            long stamp = getMap().readLock();
             try {
-                for (Slot slot : slotMap) {
+                for (Slot slot : getMap()) {
                     Object value = slot.value;
                     if (value instanceof LazilyLoadedCtor) {
                         toInitialize.add(slot);
@@ -2078,7 +2234,7 @@ public abstract class ScriptableObject
                     isSealed = true;
                 }
             } finally {
-                slotMap.unlockRead(stamp);
+                getMap().unlockRead(stamp);
             }
         }
     }
@@ -2106,8 +2262,6 @@ public abstract class ScriptableObject
      *
      * <p>Searches the prototype chain for a property named <code>name</code>.
      *
-     * <p>
-     *
      * @param obj a JavaScript object
      * @param name a property name
      * @return the value of a property with name <code>name</code> found in <code>obj</code> or any
@@ -2115,7 +2269,19 @@ public abstract class ScriptableObject
      * @since 1.5R2
      */
     public static Object getProperty(Scriptable obj, String name) {
-        Scriptable start = obj;
+        return getPropWalkingPrototypeChain(obj, name, obj);
+    }
+
+    /**
+     * Gets a named property from super, walking the super's prototype chain, but passing the
+     * correct "this" to getter slots.
+     */
+    public static Object getSuperProperty(Scriptable superObj, Scriptable thisObj, String name) {
+        return getPropWalkingPrototypeChain(superObj, name, thisObj);
+    }
+
+    private static Object getPropWalkingPrototypeChain(
+            Scriptable obj, String name, Scriptable start) {
         Object result;
         do {
             result = obj.get(name, start);
@@ -2127,7 +2293,16 @@ public abstract class ScriptableObject
 
     /** This is a version of getProperty that works with Symbols. */
     public static Object getProperty(Scriptable obj, Symbol key) {
-        Scriptable start = obj;
+        return getPropWalkingPrototypeChain(obj, obj, key);
+    }
+
+    /** This is a version of getSuperProperty that works with Symbols. */
+    public static Object getSuperProperty(Scriptable superObj, Scriptable thisObj, Symbol key) {
+        return getPropWalkingPrototypeChain(superObj, thisObj, key);
+    }
+
+    private static Object getPropWalkingPrototypeChain(
+            Scriptable obj, Scriptable start, Symbol key) {
         Object result;
         do {
             result = ensureSymbolScriptable(obj).get(key, start);
@@ -2144,8 +2319,6 @@ public abstract class ScriptableObject
      * <p>Searches the prototype chain for a property with integral index <code>index</code>. Note
      * that if you wish to look for properties with numerical but non-integral indicies, you should
      * use getProperty(Scriptable,String) with the string value of the index.
-     *
-     * <p>
      *
      * @param s a JavaScript object
      * @param index an integral index
@@ -2170,8 +2343,6 @@ public abstract class ScriptableObject
      * that if you wish to look for properties with numerical but non-integral indicies, you should
      * use getProperty(Scriptable,String) with the string value of the index.
      *
-     * <p>
-     *
      * @param obj a JavaScript object
      * @param index an integral index
      * @return the value of a property with index <code>index</code> found in <code>obj</code> or
@@ -2179,7 +2350,19 @@ public abstract class ScriptableObject
      * @since 1.5R2
      */
     public static Object getProperty(Scriptable obj, int index) {
-        Scriptable start = obj;
+        return getPropWalkingPrototypeChain(obj, index, obj);
+    }
+
+    /**
+     * Gets an indexed property from super, walking the super's prototype chain, but passing the
+     * correct "this" to getter slots.
+     */
+    public static Object getSuperProperty(Scriptable superObj, Scriptable thisObj, int index) {
+        return getPropWalkingPrototypeChain(superObj, index, thisObj);
+    }
+
+    private static Object getPropWalkingPrototypeChain(
+            Scriptable obj, int index, Scriptable start) {
         Object result;
         do {
             result = obj.get(index, start);
@@ -2194,8 +2377,6 @@ public abstract class ScriptableObject
      * the requested Java type.
      *
      * <p>Searches the prototype chain for a property named <code>name</code>.
-     *
-     * <p>
      *
      * @param s a JavaScript object
      * @param name a property name
@@ -2218,8 +2399,6 @@ public abstract class ScriptableObject
      * chain.
      *
      * <p>Searches the prototype chain for a property named <code>name</code>.
-     *
-     * <p>
      *
      * @param obj a JavaScript object
      * @param name a property name
@@ -2254,8 +2433,6 @@ public abstract class ScriptableObject
      * chain.
      *
      * <p>Searches the prototype chain for a property with index <code>index</code>.
-     *
-     * <p>
      *
      * @param obj a JavaScript object
      * @param index a property index
@@ -2292,11 +2469,23 @@ public abstract class ScriptableObject
         base.put(name, obj, value);
     }
 
+    /** Variant of putProperty to handle super.name = value */
+    public static void putSuperProperty(
+            Scriptable superObj, Scriptable thisObj, String name, Object value) {
+        superObj.put(name, thisObj, value);
+    }
+
     /** This is a version of putProperty for Symbol keys. */
     public static void putProperty(Scriptable obj, Symbol key, Object value) {
         Scriptable base = getBase(obj, key);
         if (base == null) base = obj;
         ensureSymbolScriptable(base).put(key, obj, value);
+    }
+
+    /** Variant of putProperty to handle super[key] = value where key is a symbol */
+    public static void putSuperProperty(
+            Scriptable superObj, Scriptable thisObj, Symbol key, Object value) {
+        ensureSymbolScriptable(superObj).put(key, thisObj, value);
     }
 
     /**
@@ -2341,6 +2530,12 @@ public abstract class ScriptableObject
         base.put(index, obj, value);
     }
 
+    /** Variant of putProperty to handle super[index] = value where index is integer */
+    public static void putSuperProperty(
+            Scriptable superObj, Scriptable thisObj, int index, Object value) {
+        superObj.put(index, thisObj, value);
+    }
+
     /**
      * Removes the property from an object or its prototype chain.
      *
@@ -2377,10 +2572,17 @@ public abstract class ScriptableObject
         return !base.has(index, obj);
     }
 
+    /** A version of deleteProperty for properties with Symbol keys. */
+    public static boolean deleteProperty(Scriptable obj, Symbol key) {
+        Scriptable base = getBase(obj, key);
+        if (base == null) return true;
+        SymbolScriptable scriptable = ensureSymbolScriptable(base);
+        scriptable.delete(key);
+        return !scriptable.has(key, obj);
+    }
+
     /**
      * Returns an array of all ids from an object and its prototypes.
-     *
-     * <p>
      *
      * @param obj a JavaScript object
      * @return an array of all ids from all object in the prototype chain. If a given id occurs
@@ -2552,10 +2754,6 @@ public abstract class ScriptableObject
         return Kit.initHash(h, key, value);
     }
 
-    private boolean putImpl(Object key, int index, Scriptable start, Object value) {
-        return putImpl(key, index, start, value, Context.isCurrentContextStrict());
-    }
-
     /**
      * @param key
      * @param index
@@ -2565,12 +2763,13 @@ public abstract class ScriptableObject
      * @return false if this != start and no slot was found. true if this == start or this != start
      *     and a READONLY slot was found.
      */
-    boolean putImpl(Object key, int index, Scriptable start, Object value, boolean isThrow) {
+    private boolean putImpl(
+            Object key, int index, Scriptable start, Object value, boolean isThrow) {
         // This method is very hot (basically called on each assignment)
         // so we inline the extensible/sealed checks below.
         Slot slot;
         if (this != start) {
-            slot = slotMap.query(key, index);
+            slot = getMap().query(key, index);
             if (!isExtensible
                     && (slot == null
                             || (!(slot instanceof AccessorSlot)
@@ -2582,7 +2781,7 @@ public abstract class ScriptableObject
                 return false;
             }
         } else if (!isExtensible) {
-            slot = slotMap.query(key, index);
+            slot = getMap().query(key, index);
             if ((slot == null
                             || (!(slot instanceof AccessorSlot)
                                     && (slot.getAttributes() & READONLY) != 0))
@@ -2596,7 +2795,7 @@ public abstract class ScriptableObject
             if (isSealed) {
                 checkNotSealed(key, index);
             }
-            slot = slotMap.modify(key, index, 0);
+            slot = getMap().modify(this, key, index, 0);
         }
         return slot.setValue(value, this, start, isThrow);
     }
@@ -2622,19 +2821,19 @@ public abstract class ScriptableObject
         }
         Slot slot;
         if (this != start) {
-            slot = slotMap.query(name, index);
+            slot = getMap().query(name, index);
             if (slot == null) {
                 return false;
             }
         } else if (!isExtensible()) {
-            slot = slotMap.query(name, index);
+            slot = getMap().query(name, index);
             if (slot == null) {
                 return true;
             }
         } else {
             checkNotSealed(name, index);
             // either const hoisted declaration or initialization
-            slot = slotMap.modify(name, index, CONST);
+            slot = getMap().modify(this, name, index, CONST);
             int attr = slot.getAttributes();
             if ((attr & READONLY) == 0)
                 throw Context.reportRuntimeErrorById("msg.var.redecl", name);
@@ -2650,7 +2849,7 @@ public abstract class ScriptableObject
     }
 
     private Slot getAttributeSlot(String name, int index) {
-        Slot slot = slotMap.query(name, index);
+        Slot slot = getMap().query(name, index);
         if (slot == null) {
             String str = (name != null ? name : Integer.toString(index));
             throw Context.reportRuntimeErrorById("msg.prop.not.found", str);
@@ -2659,7 +2858,7 @@ public abstract class ScriptableObject
     }
 
     private Slot getAttributeSlot(Symbol key) {
-        Slot slot = slotMap.query(key, 0);
+        Slot slot = getMap().query(key, 0);
         if (slot == null) {
             throw Context.reportRuntimeErrorById("msg.prop.not.found", key);
         }
@@ -2678,20 +2877,20 @@ public abstract class ScriptableObject
                 a[i] = Integer.valueOf(i);
             }
         }
-        if (slotMap.isEmpty()) {
+        if (getMap().isEmpty()) {
             return a;
         }
 
         int c = externalLen;
-        final long stamp = slotMap.readLock();
+        final long stamp = getMap().readLock();
         try {
-            for (Slot slot : slotMap) {
+            for (Slot slot : getMap()) {
                 if ((getNonEnumerable || (slot.getAttributes() & DONTENUM) == 0)
                         && (getSymbols || !(slot.name instanceof Symbol))) {
                     if (c == externalLen) {
                         // Special handling to combine external array with additional properties
                         Object[] oldA = a;
-                        a = new Object[slotMap.dirtySize() + externalLen];
+                        a = new Object[getMap().dirtySize() + externalLen];
                         if (oldA != null) {
                             System.arraycopy(oldA, 0, a, 0, externalLen);
                         }
@@ -2700,7 +2899,7 @@ public abstract class ScriptableObject
                 }
             }
         } finally {
-            slotMap.unlockRead(stamp);
+            getMap().unlockRead(stamp);
         }
 
         Object[] result;
@@ -2753,48 +2952,21 @@ public abstract class ScriptableObject
         }
     }
 
-    private LambdaAccessorSlot ensureLambdaAccessorSlot(
-            Context cx,
-            Object name,
-            int index,
-            Slot existing,
-            java.util.function.Function<Scriptable, Object> getter,
-            BiConsumer<Scriptable, Object> setter,
-            int attributes) {
-        var newSlot = createLambdaAccessorSlot(name, index, existing, getter, setter, attributes);
-        var newDesc = newSlot.getPropertyDescriptor(cx, this);
-        checkPropertyDefinition(newDesc);
-
-        if (existing == null) {
-            checkPropertyChange(name, null, newDesc);
-            return newSlot;
-        } else if (existing instanceof LambdaAccessorSlot) {
-            var slot = (LambdaAccessorSlot) existing;
-            var existingDesc = slot.getPropertyDescriptor(cx, this);
-            checkPropertyChange(name, existingDesc, newDesc);
-            return newSlot;
-        } else {
-            var existingDesc = existing.getPropertyDescriptor(cx, this);
-            checkPropertyChange(name, existingDesc, newDesc);
-            return newSlot;
-        }
-    }
-
     private void writeObject(ObjectOutputStream out) throws IOException {
         out.defaultWriteObject();
-        final long stamp = slotMap.readLock();
+        final long stamp = getMap().readLock();
         try {
-            int objectsCount = slotMap.dirtySize();
+            int objectsCount = getMap().dirtySize();
             if (objectsCount == 0) {
                 out.writeInt(0);
             } else {
                 out.writeInt(objectsCount);
-                for (Slot slot : slotMap) {
+                for (Slot slot : getMap()) {
                     out.writeObject(slot);
                 }
             }
         } finally {
-            slotMap.unlockRead(stamp);
+            getMap().unlockRead(stamp);
         }
     }
 
@@ -2802,10 +2974,10 @@ public abstract class ScriptableObject
         in.defaultReadObject();
 
         int tableSize = in.readInt();
-        slotMap = createSlotMap(tableSize);
+        setMap(createSlotMap(tableSize));
         for (int i = 0; i < tableSize; i++) {
             Slot slot = (Slot) in.readObject();
-            slotMap.add(slot);
+            getMap().add(this, slot);
         }
     }
 
@@ -2815,26 +2987,26 @@ public abstract class ScriptableObject
         return slot.getPropertyDescriptor(cx, this);
     }
 
-    protected Slot querySlot(Context cx, Object id) {
+    protected final Slot querySlot(Context cx, Object id) {
         if (id instanceof Symbol) {
-            return slotMap.query(id, 0);
+            return getMap().query(id, 0);
         }
         StringIdOrIndex s = ScriptRuntime.toStringIdOrIndex(id);
         if (s.stringId == null) {
-            return slotMap.query(null, s.index);
+            return getMap().query(null, s.index);
         }
-        return slotMap.query(s.stringId, 0);
+        return getMap().query(s.stringId, 0);
     }
 
     // Partial implementation of java.util.Map. See NativeObject for
     // a subclass that implements java.util.Map.
 
     public int size() {
-        return slotMap.size();
+        return getMap().size();
     }
 
     public boolean isEmpty() {
-        return slotMap.isEmpty();
+        return getMap().isEmpty();
     }
 
     public Object get(Object key) {
@@ -2880,5 +3052,70 @@ public abstract class ScriptableObject
             }
             return 0;
         }
+    }
+
+    public static <T extends ScriptableObject> void defineBuiltInProperty(
+            T owner,
+            String name,
+            int attributes,
+            BuiltInSlot.Getter<T> getter,
+            BuiltInSlot.Setter<T> setter) {
+        owner.getMap().add(owner, new BuiltInSlot<T>(name, 0, attributes, owner, getter, setter));
+    }
+
+    public static <T extends ScriptableObject> void defineBuiltInProperty(
+            T owner,
+            Object name,
+            int attributes,
+            BuiltInSlot.Getter<T> getter,
+            BuiltInSlot.Setter<T> setter,
+            BuiltInSlot.AttributeSetter<T> attrSetter) {
+        owner.getMap()
+                .add(
+                        owner,
+                        new BuiltInSlot<T>(name, 0, attributes, owner, getter, setter, attrSetter));
+    }
+
+    public static <T extends ScriptableObject> void defineBuiltInProperty(
+            T owner, Object name, int attributes, BuiltInSlot.Getter<T> getter) {
+        owner.getMap().add(owner, new BuiltInSlot<T>(name, 0, attributes, owner, getter));
+    }
+
+    public static <T extends ScriptableObject> void defineBuiltInProperty(
+            T owner,
+            String name,
+            int attributes,
+            BuiltInSlot.Getter<T> getter,
+            BuiltInSlot.Setter<T> setter,
+            BuiltInSlot.AttributeSetter<T> attrSetter,
+            BuiltInSlot.PropDescriptionSetter<T> propDescSetter) {
+        owner.getMap()
+                .add(
+                        owner,
+                        new BuiltInSlot<T>(
+                                name,
+                                0,
+                                attributes,
+                                owner,
+                                getter,
+                                setter,
+                                attrSetter,
+                                propDescSetter));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <T> T ensureType(Object obj, Class<T> clazz, String functionName) {
+        if (clazz.isInstance(obj)) {
+            return (T) obj;
+        }
+        if (obj == null) {
+            throw ScriptRuntime.typeErrorById(
+                    "msg.incompat.call.details", functionName, "null", clazz.getName());
+        }
+        throw ScriptRuntime.typeErrorById(
+                "msg.incompat.call.details",
+                functionName,
+                obj.getClass().getName(),
+                clazz.getName());
     }
 }

@@ -1,7 +1,12 @@
+// This file inherits from "java-conventions" and adds additional error
+// checks and publishing data for modules that will be published to
+// Maven Central. It should only be used for those modules that will
+// be published and used by other projects.
+
 plugins {
     id 'rhino.java-conventions'
     id 'maven-publish'
-    id 'checkstyle'
+    id 'signing'
     id 'jacoco'
     id 'net.ltgt.errorprone'
 }
@@ -35,8 +40,6 @@ tasks.withType(JavaCompile).configureEach {
         "EscapedEntity",
         "MissingSummary",
         "InvalidBlockTag",
-        "InvalidLink",
-        "InvalidParam",
         "NotJavadoc",
         "UnicodeEscape",
         // Great ideas for when minimum version is more than Java 11
@@ -49,13 +52,26 @@ tasks.withType(JavaCompile).configureEach {
         "InlineMeSuggester",
         // This one either alerts for parameters that we don't use,
         // or spuriously for local variables in my opinion.
-        "UnusedVariable")
+        "UnusedVariable",
+        // This requires annotations that are difficult to incorporate
+        // without adding a dependency for everyon who uses Rhino.
+        "AnnotateFormatMethod"
+        )
+    options.errorprone.enable(
+        // These two do the last thing that Checkstyle used to do for us
+        "RemoveUnusedImports",
+        "WildcardImport",
+        // Warn us proactively that we are using things that might not work on Android.
+        // We will aggressively used "SuppressWarnings" for these, but these can be
+        // a reminder to check with an Android user since we don't have automated
+        // Android unit tests.
+        "AndroidJdkLibsChecker")
     options.errorprone.excludedPaths = '.+/src/test/java/.+'
 }
 
 tasks.withType(Javadoc) {
-      failOnError false
-      options.addStringOption('Xdoclint:none', '-quiet')
+      failOnError = false
+      options.addStringOption('Xdoclint:all,-missing', '-quiet')
 }
 
 jacocoTestReport {
@@ -85,18 +101,30 @@ task sourceJar(type: Jar) {
     }
 }
 
+signing {
+    if (project.hasProperty('SIGNINGKEY')) {
+        // Check for ORG_GRADLE_PROJECT_SIGNINGKEY environment variable for use in CI system.
+        // Otherwise, do not sign.
+        def signingKey = getProperty('SIGNINGKEY')
+        def signingPassword = getProperty('SIGNINGPASSWORD')
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign publishing.publications
+    }
+}
+
+
 publishing {
     if (project.hasProperty("mavenPassword")) {
         repositories {
             maven {
                 credentials {
-                    username mavenUser
-                    password mavenPassword
+                    username = mavenUser
+                    password = mavenPassword
                 }
                 if (project.version.endsWith('-SNAPSHOT')) {
-                    url mavenSnapshotRepo
+                    url = mavenSnapshotRepo
                 } else {
-                    url mavenReleaseRepo
+                    url = mavenReleaseRepo
                 }
             }
         }
@@ -107,7 +135,7 @@ publishing {
                     username = System.getenv("GITHUB_ACTOR")
                     password = System.getenv("GITHUB_TOKEN")
                 }
-                url githubPackagesRepo
+                url = githubPackagesRepo
             }
         }
     }

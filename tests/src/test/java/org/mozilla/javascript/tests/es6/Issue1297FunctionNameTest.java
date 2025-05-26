@@ -5,7 +5,7 @@
 package org.mozilla.javascript.tests.es6;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 /** Test that we can redefine a function's name. */
 public class Issue1297FunctionNameTest {
@@ -18,6 +18,6 @@ public class Issue1297FunctionNameTest {
                         + "Object.defineProperty(X, 'name', {value: 'y', configurable: true, writable: true});"
                         + "X.name";
 
-        Utils.assertWithAllOptimizationLevels("y", code);
+        Utils.assertWithAllModes("y", code);
     }
 }

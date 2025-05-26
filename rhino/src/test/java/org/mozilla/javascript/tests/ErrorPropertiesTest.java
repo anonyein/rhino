@@ -8,6 +8,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Unit tests for <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=549604">bug 549604</a>. This
@@ -20,15 +21,14 @@ public class ErrorPropertiesTest {
     static final String LS = System.getProperty("line.separator");
 
     private void testScriptStackTrace(final String script, final String expectedStackTrace) {
-        testScriptStackTrace(script, expectedStackTrace, -1);
-        testScriptStackTrace(script, expectedStackTrace, 0);
-        testScriptStackTrace(script, expectedStackTrace, 1);
+        testScriptStackTrace(script, expectedStackTrace, false);
+        testScriptStackTrace(script, expectedStackTrace, true);
     }
 
     private void testScriptStackTrace(
-            final String script, final String expectedStackTrace, final int optimizationLevel) {
+            final String script, final String expectedStackTrace, final boolean interpreted) {
         try {
-            Utils.executeScript(script, optimizationLevel);
+            Utils.executeScript(script, interpreted);
         } catch (final RhinoException e) {
             Assert.assertEquals(expectedStackTrace, e.getScriptStackTrace());
         }
@@ -76,7 +76,7 @@ public class ErrorPropertiesTest {
     }
 
     private void testIt(final String script, final Object expected) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     try {
                         final ScriptableObject scope = cx.initStandardObjects();

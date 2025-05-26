@@ -9,6 +9,7 @@ package org.mozilla.javascript;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import org.mozilla.javascript.ast.ArrayComprehension;
 import org.mozilla.javascript.ast.ArrayComprehensionLoop;
 import org.mozilla.javascript.ast.ArrayLiteral;
@@ -33,6 +34,7 @@ import org.mozilla.javascript.ast.FunctionCall;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.GeneratorExpression;
 import org.mozilla.javascript.ast.GeneratorExpressionLoop;
+import org.mozilla.javascript.ast.GeneratorMethodDefinition;
 import org.mozilla.javascript.ast.IfStatement;
 import org.mozilla.javascript.ast.InfixExpression;
 import org.mozilla.javascript.ast.Jump;
@@ -95,13 +97,24 @@ public final class IRFactory {
     private AstNodePosition astNodePos;
 
     public IRFactory(CompilerEnvirons env, String sourceString) {
-        this(env, sourceString, env.getErrorReporter());
+        this(env, null, sourceString, env.getErrorReporter());
     }
 
+    /** Use {@link #IRFactory(CompilerEnvirons, String, String, ErrorReporter)} */
+    @Deprecated
     public IRFactory(CompilerEnvirons env, String sourceString, ErrorReporter errorReporter) {
+        this(env, null, sourceString, errorReporter);
+    }
+
+    public IRFactory(
+            CompilerEnvirons env,
+            String sourceName,
+            String sourceString,
+            ErrorReporter errorReporter) {
         parser = new Parser(env, errorReporter);
         astNodePos = new AstNodePosition(sourceString);
         parser.currentPos = astNodePos;
+        parser.setSourceURI(sourceName);
     }
 
     /** Transforms the tree into a lower-level IR suitable for codegen. */
@@ -163,6 +176,12 @@ public final class IRFactory {
                 return transformElementGet((ElementGet) node);
             case Token.GETPROP:
                 return transformPropertyGet((PropertyGet) node);
+            case Token.QUESTION_DOT:
+                if (node instanceof ElementGet) {
+                    return transformElementGet((ElementGet) node);
+                } else {
+                    return transformPropertyGet((PropertyGet) node);
+                }
             case Token.HOOK:
                 return transformCondExpr((ConditionalExpression) node);
             case Token.IF:
@@ -174,7 +193,9 @@ public final class IRFactory {
             case Token.NULL:
             case Token.DEBUGGER:
                 return transformLiteral(node);
-
+            case Token.SUPER:
+                parser.setRequiresActivation();
+                return transformLiteral(node);
             case Token.NAME:
                 return transformName((Name) node);
             case Token.NUMBER:
@@ -248,6 +269,9 @@ public final class IRFactory {
                 if (node instanceof XmlLiteral) {
                     return transformXmlLiteral((XmlLiteral) node);
                 }
+                if (node instanceof GeneratorMethodDefinition) {
+                    return transformGeneratorMethodDefinition((GeneratorMethodDefinition) node);
+                }
                 throw new IllegalArgumentException("Can't transform: " + node);
         }
     }
@@ -273,22 +297,24 @@ public final class IRFactory {
         //   createName(tmp1)
         // }
 
-        int lineno = node.getLineno();
-        Scope scopeNode = parser.createScopeNode(Token.ARRAYCOMP, lineno);
+        int lineno = node.getLineno(), column = node.getColumn();
+        Scope scopeNode = parser.createScopeNode(Token.ARRAYCOMP, lineno, column);
         String arrayName = parser.currentScriptOrFn.getNextTempName();
         parser.pushScope(scopeNode);
         try {
             astNodePos.push(node);
             try {
                 parser.defineSymbol(Token.LET, arrayName, false);
-                Node block = new Node(Token.BLOCK, lineno);
+                Node block = new Node(Token.BLOCK);
+                block.setLineColumnNumber(lineno, column);
                 Node newArray = createCallOrNew(Token.NEW, parser.createName("Array"));
                 Node init =
                         new Node(
                                 Token.EXPR_VOID,
                                 createAssignment(
                                         Token.ASSIGN, parser.createName(arrayName), newArray),
-                                lineno);
+                                lineno,
+                                column);
                 block.addChildToBack(init);
                 block.addChildToBack(arrayCompTransformHelper(node, arrayName));
                 scopeNode.addChildToBack(block);
@@ -303,7 +329,7 @@ public final class IRFactory {
     }
 
     private Node arrayCompTransformHelper(ArrayComprehension node, String arrayName) {
-        int lineno = node.getLineno();
+        int lineno = node.getLineno(), column = node.getColumn();
         Node expr = transform(node.getResult());
 
         List<ArrayComprehensionLoop> loops = node.getLoops();
@@ -347,12 +373,14 @@ public final class IRFactory {
         Node call =
                 createCallOrNew(
                         Token.CALL,
-                        createPropertyGet(parser.createName(arrayName), null, "push", 0));
+                        createPropertyGet(
+                                parser.createName(arrayName), null, "push", 0, node.type));
 
-        Node body = new Node(Token.EXPR_VOID, call, lineno);
+        Node body = new Node(Token.EXPR_VOID, call);
+        body.setLineColumnNumber(lineno, column);
 
         if (node.getFilter() != null) {
-            body = createIf(transform(node.getFilter()), body, null, lineno);
+            body = createIf(transform(node.getFilter()), body, null, lineno, column);
         }
 
         // Now walk loops in reverse to build up the body statement.
@@ -363,7 +391,8 @@ public final class IRFactory {
                 Scope loop =
                         createLoopNode(
                                 null, // no label
-                                acl.getLineno());
+                                acl.getLineno(),
+                                acl.getColumn());
                 parser.pushScope(loop);
                 pushed++;
                 body =
@@ -471,10 +500,26 @@ public final class IRFactory {
         }
         try {
             List<Node> kids = new ArrayList<>();
+            /*
+            Function declarations inside blocks (FUNCTION_EXPRESSION_STATEMENTS) should be
+            hoisted at the top of block so that they can be referred by statements above them
+             */
+            List<Node> functions = new ArrayList<>();
+
             for (Node kid : node) {
-                kids.add(transform((AstNode) kid));
+                if (kid instanceof FunctionNode
+                        && ((FunctionNode) kid).getFunctionType()
+                                == FunctionNode.FUNCTION_EXPRESSION_STATEMENT) {
+                    functions.add(transform((AstNode) kid));
+                } else {
+                    kids.add(transform((AstNode) kid));
+                }
             }
             node.removeChildren();
+
+            for (Node function : functions) {
+                node.addChildToBack(function);
+            }
             for (Node kid : kids) {
                 node.addChildToBack(kid);
             }
@@ -518,12 +563,19 @@ public final class IRFactory {
         // iff elem is string that can not be number
         Node target = transform(node.getTarget());
         Node element = transform(node.getElement());
-        return new Node(Token.GETELEM, target, element);
+        Node getElem = new Node(Token.GETELEM, target, element);
+        if (node.type == Token.QUESTION_DOT) {
+            getElem.putIntProp(Node.OPTIONAL_CHAINING, 1);
+        }
+        if (target.getType() == Token.SUPER) {
+            getElem.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+        }
+        return getElem;
     }
 
     private Node transformExprStmt(ExpressionStatement node) {
         Node expr = transform(node.getExpression());
-        return new Node(node.getType(), expr, node.getLineno());
+        return new Node(node.getType(), expr, node.getLineno(), node.getColumn());
     }
 
     private Node transformForInLoop(ForInLoop loop) {
@@ -573,12 +625,54 @@ public final class IRFactory {
             Node destructuring = (Node) fn.getProp(Node.DESTRUCTURING_PARAMS);
             fn.removeProp(Node.DESTRUCTURING_PARAMS);
 
-            int lineno = fn.getBody().getLineno();
+            int lineno = fn.getBody().getLineno(), column = fn.getBody().getColumn();
             ++parser.nestingOfFunction; // only for body, not params
             Node body = transform(fn.getBody());
 
+            /* Process simple default parameters */
+            List<Object> defaultParams = fn.getDefaultParams();
+            if (defaultParams != null) {
+                for (int i = defaultParams.size() - 1; i > 0; ) {
+                    if (defaultParams.get(i) instanceof AstNode
+                            && defaultParams.get(i - 1) instanceof String) {
+                        AstNode rhs = (AstNode) defaultParams.get(i);
+                        String name = (String) defaultParams.get(i - 1);
+                        body.addChildToFront(
+                                createIf(
+                                        createBinary(
+                                                Token.SHEQ,
+                                                parser.createName(name),
+                                                parser.createName("undefined")),
+                                        new Node(
+                                                Token.EXPR_VOID,
+                                                createAssignment(
+                                                        Token.ASSIGN,
+                                                        parser.createName(name),
+                                                        transform(rhs)),
+                                                body.getLineno(),
+                                                body.getColumn()),
+                                        null,
+                                        body.getLineno(),
+                                        body.getColumn()));
+                    }
+                    i -= 2;
+                }
+            }
+
+            /* transform nodes used as default parameters */
+            List<Node[]> dfns = fn.getDestructuringRvalues();
+            if (dfns != null) {
+                for (var i : dfns) {
+                    Node a = i[0];
+                    if (i[1] instanceof AstNode) {
+                        AstNode b = (AstNode) i[1];
+                        a.replaceChild(b, transform(b));
+                    }
+                }
+            }
+
             if (destructuring != null) {
-                body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno));
+                body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno, column));
             }
 
             int syntheticType = fn.getFunctionType();
@@ -591,7 +685,7 @@ public final class IRFactory {
                     astNodePos.pop();
                 }
                 if (syntheticType != FunctionNode.FUNCTION_EXPRESSION) {
-                    pn = createExprStatementNoReturn(pn, fn.getLineno());
+                    pn = createExprStatementNoReturn(pn, fn.getLineno(), fn.getColumn());
                 }
             }
             return pn;
@@ -603,14 +697,26 @@ public final class IRFactory {
     }
 
     private Node transformFunctionCall(FunctionCall node) {
-        Node call = createCallOrNew(Token.CALL, transform(node.getTarget()));
-        call.setLineno(node.getLineno());
-        List<AstNode> args = node.getArguments();
-        for (int i = 0; i < args.size(); i++) {
-            AstNode arg = args.get(i);
-            call.addChildToBack(transform(arg));
+        astNodePos.push(node);
+        try {
+            Node transformedTarget = transform(node.getTarget());
+            Node call = createCallOrNew(Token.CALL, transformedTarget);
+            call.setLineColumnNumber(node.getLineno(), node.getColumn());
+            List<AstNode> args = node.getArguments();
+            for (int i = 0; i < args.size(); i++) {
+                AstNode arg = args.get(i);
+                call.addChildToBack(transform(arg));
+            }
+            if (node.isOptionalCall()) {
+                call.putIntProp(Node.OPTIONAL_CHAINING, 1);
+            }
+            if (transformedTarget.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
+                call.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+            }
+            return call;
+        } finally {
+            astNodePos.pop();
         }
-        return call;
     }
 
     private Node transformGenExpr(GeneratorExpression node) {
@@ -632,12 +738,12 @@ public final class IRFactory {
             Node destructuring = (Node) fn.getProp(Node.DESTRUCTURING_PARAMS);
             fn.removeProp(Node.DESTRUCTURING_PARAMS);
 
-            int lineno = node.lineno;
+            int lineno = node.getLineno(), column = node.getColumn();
             ++parser.nestingOfFunction; // only for body, not params
             Node body = genExprTransformHelper(node);
 
             if (destructuring != null) {
-                body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno));
+                body.addChildToFront(new Node(Token.EXPR_VOID, destructuring, lineno, column));
             }
 
             int syntheticType = fn.getFunctionType();
@@ -650,7 +756,7 @@ public final class IRFactory {
                     astNodePos.pop();
                 }
                 if (syntheticType != FunctionNode.FUNCTION_EXPRESSION) {
-                    pn = createExprStatementNoReturn(pn, fn.getLineno());
+                    pn = createExprStatementNoReturn(pn, fn.getLineno(), fn.getColumn());
                 }
             }
         } finally {
@@ -659,12 +765,12 @@ public final class IRFactory {
         }
 
         Node call = createCallOrNew(Token.CALL, pn);
-        call.setLineno(node.getLineno());
+        call.setLineColumnNumber(node.getLineno(), node.getColumn());
         return call;
     }
 
     private Node genExprTransformHelper(GeneratorExpression node) {
-        int lineno = node.getLineno();
+        int lineno = node.getLineno(), column = node.getColumn();
         Node expr = transform(node.getResult());
 
         List<GeneratorExpressionLoop> loops = node.getLoops();
@@ -706,12 +812,12 @@ public final class IRFactory {
         }
 
         // generate code for tmpArray.push(body)
-        Node yield = new Node(Token.YIELD, expr, node.getLineno());
+        Node yield = new Node(Token.YIELD, expr, node.getLineno(), node.getColumn());
 
-        Node body = new Node(Token.EXPR_VOID, yield, lineno);
+        Node body = new Node(Token.EXPR_VOID, yield, lineno, column);
 
         if (node.getFilter() != null) {
-            body = createIf(transform(node.getFilter()), body, null, lineno);
+            body = createIf(transform(node.getFilter()), body, null, lineno, column);
         }
 
         // Now walk loops in reverse to build up the body statement.
@@ -722,7 +828,8 @@ public final class IRFactory {
                 Scope loop =
                         createLoopNode(
                                 null, // no label
-                                acl.getLineno());
+                                acl.getLineno(),
+                                acl.getColumn());
                 parser.pushScope(loop);
                 pushed++;
                 body =
@@ -752,41 +859,25 @@ public final class IRFactory {
         if (n.getElsePart() != null) {
             ifFalse = transform(n.getElsePart());
         }
-        return createIf(cond, ifTrue, ifFalse, n.getLineno());
+        return createIf(cond, ifTrue, ifFalse, n.getLineno(), n.getColumn());
     }
 
     private Node transformInfix(InfixExpression node) {
         Node left = transform(node.getLeft());
         Node right = transform(node.getRight());
-        return (node.getType() == Token.NULLISH_COALESCING)
-                ? transformNullishCoalescing(left, right, node)
-                : createBinary(node.getType(), left, right);
-    }
+        Node binaryNode = createBinary(node.getType(), left, right);
 
-    private Node transformNullishCoalescing(Node left, Node right, Node parent) {
-        String tempName = parser.currentScriptOrFn.getNextTempName();
+        // Since we are transforming InfixExpression -> Node, we need to copy over the column and
+        // line, but only for newly created nodes which have no column information set.
+        // createBinary() may return a Node reference with the correct line/column.
+        // Example: `true && <other_expr>` would return the `<other_expr>` reference from
+        // createBinary
+        boolean nodeCreated = (binaryNode != left) && (binaryNode != right);
+        if (nodeCreated) {
+            binaryNode.setLineColumnNumber(node.getLineno(), node.getColumn());
+        }
 
-        Node nullNode = new Node(Token.NULL);
-        Node undefinedNode = new Name(0, "undefined");
-
-        Node conditional =
-                new Node(
-                        Token.OR,
-                        new Node(Token.SHEQ, nullNode, parser.createName(tempName)),
-                        new Node(Token.SHEQ, undefinedNode, parser.createName(tempName)));
-
-        Node hookNode =
-                new Node(
-                        Token.HOOK,
-                        /* left= */ conditional,
-                        /* mid= */ right,
-                        /* right= */ parser.createName(tempName));
-
-        parser.defineSymbol(Token.LP, tempName, true);
-        return createBinary(
-                Token.COMMA,
-                createAssignment(Token.ASSIGN, parser.createName(tempName), left),
-                hookNode);
+        return binaryNode;
     }
 
     private Node transformLabeledStatement(LabeledStatement ls) {
@@ -818,6 +909,11 @@ public final class IRFactory {
     }
 
     private Node transformLiteral(AstNode node) {
+        // Trying to call super as a function. See 15.4.2 Static Semantics: HasDirectSuper
+        // Note that this will need to change when classes are implemented, because in a class
+        // constructor calling "super()" _is_ allowed.
+        if (node.getParent() instanceof FunctionCall && node.getType() == Token.SUPER)
+            parser.reportError("msg.super.shorthand.function");
         return node;
     }
 
@@ -827,7 +923,7 @@ public final class IRFactory {
 
     private Node transformNewExpr(NewExpression node) {
         Node nx = createCallOrNew(Token.NEW, transform(node.getTarget()));
-        nx.setLineno(node.getLineno());
+        nx.setLineColumnNumber(node.getLineno(), node.getColumn());
         List<AstNode> args = node.getArguments();
         for (int i = 0; i < args.size(); i++) {
             AstNode arg = args.get(i);
@@ -852,6 +948,7 @@ public final class IRFactory {
         // stages don't need to know about object literals.
         List<ObjectProperty> elems = node.getElements();
         Node object = new Node(Token.OBJECTLIT);
+        object.setLineColumnNumber(node.getLineno(), node.getColumn());
         Object[] properties;
         if (elems.isEmpty()) {
             properties = ScriptRuntime.emptyArgs;
@@ -859,7 +956,7 @@ public final class IRFactory {
             int size = elems.size(), i = 0;
             properties = new Object[size];
             for (ObjectProperty prop : elems) {
-                Object propKey = getPropKey(prop.getLeft());
+                Object propKey = Parser.getPropKey(prop.getLeft());
                 if (propKey == null) {
                     Node theId = transform(prop.getLeft());
                     properties[i++] = theId;
@@ -882,23 +979,6 @@ public final class IRFactory {
         return object;
     }
 
-    private Object getPropKey(Node id) {
-        Object key;
-        if (id instanceof Name) {
-            String s = ((Name) id).getIdentifier();
-            key = ScriptRuntime.getIndexObject(s);
-        } else if (id instanceof StringLiteral) {
-            String s = ((StringLiteral) id).getValue();
-            key = ScriptRuntime.getIndexObject(s);
-        } else if (id instanceof NumberLiteral) {
-            double n = ((NumberLiteral) id).getNumber();
-            key = ScriptRuntime.getIndexObject(n);
-        } else {
-            key = null; // Filled later
-        }
-        return key;
-    }
-
     private Node transformParenExpr(ParenthesizedExpression node) {
         AstNode expr = node.getExpression();
         while (expr instanceof ParenthesizedExpression) {
@@ -917,7 +997,7 @@ public final class IRFactory {
     private Node transformPropertyGet(PropertyGet node) {
         Node target = transform(node.getTarget());
         String name = node.getProperty().getIdentifier();
-        return createPropertyGet(target, null, name, 0);
+        return createPropertyGet(target, null, name, 0, node.type);
     }
 
     private Node transformTemplateLiteral(TemplateLiteral node) {
@@ -940,8 +1020,12 @@ public final class IRFactory {
     }
 
     private Node transformTemplateLiteralCall(TaggedTemplateLiteral node) {
-        Node call = createCallOrNew(Token.CALL, transform(node.getTarget()));
-        call.setLineno(node.getLineno());
+        Node transformedTarget = transform(node.getTarget());
+        Node call = createCallOrNew(Token.CALL, transformedTarget);
+        call.setLineColumnNumber(node.getLineno(), node.getColumn());
+        if (transformedTarget.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
+            call.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+        }
         TemplateLiteral templateLiteral = (TemplateLiteral) node.getTemplateLiteral();
         List<AstNode> elems = templateLiteral.getElements();
         call.addChildToBack(templateLiteral);
@@ -963,8 +1047,8 @@ public final class IRFactory {
         AstNode rv = node.getReturnValue();
         Node value = rv == null ? null : transform(rv);
         return rv == null
-                ? new Node(Token.RETURN, node.getLineno())
-                : new Node(Token.RETURN, value, node.getLineno());
+                ? new Node(Token.RETURN, node.getLineno(), node.getColumn())
+                : new Node(Token.RETURN, value, node.getLineno(), node.getColumn());
     }
 
     private Node transformScript(ScriptNode node) {
@@ -983,7 +1067,9 @@ public final class IRFactory {
     }
 
     private Node transformString(StringLiteral node) {
-        return Node.newString(node.getValue());
+        Node stringNode = Node.newString(node.getValue());
+        stringNode.setLineColumnNumber(node.getLineno(), node.getColumn());
+        return stringNode;
     }
 
     private Node transformSwitch(SwitchStatement node) {
@@ -1029,7 +1115,7 @@ public final class IRFactory {
         Node switchExpr = transform(node.getExpression());
         node.addChildToBack(switchExpr);
 
-        Node block = new Node(Token.BLOCK, node, node.getLineno());
+        Node block = new Node(Token.BLOCK, node, node.getLineno(), node.getColumn());
 
         for (SwitchCase sc : node.getCases()) {
             AstNode expr = sc.getExpression();
@@ -1054,7 +1140,10 @@ public final class IRFactory {
 
     private Node transformThrow(ThrowStatement node) {
         Node value = transform(node.getExpression());
-        return new Node(Token.THROW, value, node.getLineno());
+        value.setLineColumnNumber(node.getLineno(), node.getColumn());
+        Node nx = new Node(Token.THROW, value);
+        nx.setLineColumnNumber(node.getLineno(), node.getColumn());
+        return nx;
     }
 
     private Node transformTry(TryStatement node) {
@@ -1079,19 +1168,21 @@ public final class IRFactory {
 
             Node body = transform(cc.getBody());
 
-            catchBlocks.addChildToBack(createCatch(varNameNode, catchCond, body, cc.getLineno()));
+            catchBlocks.addChildToBack(
+                    createCatch(varNameNode, catchCond, body, cc.getLineno(), cc.getColumn()));
         }
         Node finallyBlock = null;
         if (node.getFinallyBlock() != null) {
             finallyBlock = transform(node.getFinallyBlock());
         }
-        return createTryCatchFinally(tryBlock, catchBlocks, finallyBlock, node.getLineno());
+        return createTryCatchFinally(
+                tryBlock, catchBlocks, finallyBlock, node.getLineno(), node.getColumn());
     }
 
     private Node transformUnary(UnaryExpression node) {
         int type = node.getType();
         if (type == Token.DEFAULTNAMESPACE) {
-            return transformDefaultXmlNamepace(node);
+            return transformDefaultXmlNamespace(node);
         }
 
         Node child = transform(node.getOperand());
@@ -1133,7 +1224,9 @@ public final class IRFactory {
                 } else {
                     astNodePos.push(var);
                     try {
-                        Node d = parser.createDestructuringAssignment(node.getType(), left, right);
+                        Node d =
+                                parser.createDestructuringAssignment(
+                                        node.getType(), left, right, this::transform);
                         node.addChildToBack(d);
                     } finally {
                         astNodePos.pop();
@@ -1164,20 +1257,20 @@ public final class IRFactory {
     private Node transformWith(WithStatement node) {
         Node expr = transform(node.getExpression());
         Node stmt = transform(node.getStatement());
-        return createWith(expr, stmt, node.getLineno());
+        return createWith(expr, stmt, node.getLineno(), node.getColumn());
     }
 
     private Node transformYield(Yield node) {
         Node kid = node.getValue() == null ? null : transform(node.getValue());
-        if (kid != null) return new Node(node.getType(), kid, node.getLineno());
-        return new Node(node.getType(), node.getLineno());
+        if (kid != null) return new Node(node.getType(), kid, node.getLineno(), node.getColumn());
+        return new Node(node.getType(), node.getLineno(), node.getColumn());
     }
 
     private Node transformXmlLiteral(XmlLiteral node) {
         // a literal like <foo>{bar}</foo> is rewritten as
         //   new XML("<foo>" + bar + "</foo>");
 
-        Node pnXML = new Node(Token.NEW, node.getLineno());
+        Node pnXML = new Node(Token.NEW, node.getLineno(), node.getColumn());
         List<XmlFragment> frags = node.getFragments();
 
         XmlString first = (XmlString) frags.get(0);
@@ -1239,15 +1332,20 @@ public final class IRFactory {
         String ns = namespace != null ? namespace.getIdentifier() : null;
         if (node instanceof XmlPropRef) {
             String name = ((XmlPropRef) node).getPropName().getIdentifier();
-            return createPropertyGet(pn, ns, name, memberTypeFlags);
+            return createPropertyGet(pn, ns, name, memberTypeFlags, node.type);
         }
         Node expr = transform(((XmlElemRef) node).getExpression());
         return createElementGet(pn, ns, expr, memberTypeFlags);
     }
 
-    private Node transformDefaultXmlNamepace(UnaryExpression node) {
+    private Node transformDefaultXmlNamespace(UnaryExpression node) {
         Node child = transform(node.getOperand());
         return createUnary(Token.DEFAULTNAMESPACE, child);
+    }
+
+    private Node transformGeneratorMethodDefinition(GeneratorMethodDefinition node) {
+        // Unwrap the "temporary" AST node
+        return transform(node.getMethodName());
     }
 
     /** If caseExpression argument is null it indicates a default label. */
@@ -1287,8 +1385,8 @@ public final class IRFactory {
         switchBlock.addChildToBack(switchBreakTarget);
     }
 
-    private static Node createExprStatementNoReturn(Node expr, int lineno) {
-        return new Node(Token.EXPR_VOID, expr, lineno);
+    private static Node createExprStatementNoReturn(Node expr, int lineno, int column) {
+        return new Node(Token.EXPR_VOID, expr, lineno, column);
     }
 
     private static Node createString(String string) {
@@ -1303,15 +1401,16 @@ public final class IRFactory {
      *     condition is given.
      * @param stmts the statements in the catch clause
      * @param lineno the starting line number of the catch clause
+     * @param column the starting column number of the catch clause
      */
-    private Node createCatch(Node varName, Node catchCond, Node stmts, int lineno) {
+    private Node createCatch(Node varName, Node catchCond, Node stmts, int lineno, int column) {
         if (varName == null) {
             varName = new Node(Token.EMPTY);
         }
         if (catchCond == null) {
             catchCond = new Node(Token.EMPTY);
         }
-        return new Node(Token.CATCH, varName, catchCond, stmts, lineno);
+        return new Node(Token.CATCH, varName, catchCond, stmts, lineno, column);
     }
 
     private static Node initFunction(
@@ -1323,6 +1422,7 @@ public final class IRFactory {
         if (functionCount != 0) {
             // Functions containing other functions require activation objects
             fnNode.setRequiresActivation();
+            propagateRequiresArgumentObjectFromNestedArrowFunctions(fnNode);
         }
 
         if (functionType == FunctionNode.FUNCTION_EXPRESSION) {
@@ -1360,12 +1460,34 @@ public final class IRFactory {
         return result;
     }
 
+    private static void propagateRequiresArgumentObjectFromNestedArrowFunctions(
+            FunctionNode fnNode) {
+        if (fnNode.requiresArgumentObject()) {
+            return;
+        }
+
+        // If a nested lambda needs arguments, the outer function needs them too.
+        Queue<FunctionNode> toVisit = new ArrayDeque<>(fnNode.getFunctions());
+        while (!toVisit.isEmpty()) {
+            FunctionNode nestedFunction = toVisit.poll();
+            if (nestedFunction.getFunctionType() == FunctionNode.ARROW_FUNCTION) {
+                if (nestedFunction.requiresArgumentObject()) {
+                    fnNode.setRequiresArgumentObject();
+                    return;
+                }
+
+                // All nested arrow functions, recursively
+                toVisit.addAll(nestedFunction.getFunctions());
+            }
+        }
+    }
+
     /**
      * Create loop node. The code generator will later call
      * createWhile|createDoWhile|createFor|createForIn to finish loop generation.
      */
-    private Scope createLoopNode(Node loopLabel, int lineno) {
-        Scope result = parser.createScopeNode(Token.LOOP, lineno);
+    private Scope createLoopNode(Node loopLabel, int lineno, int column) {
+        Scope result = parser.createScopeNode(Token.LOOP, lineno, column);
         if (loopLabel != null) {
             ((Jump) loopLabel).setLoop(result);
         }
@@ -1401,7 +1523,7 @@ public final class IRFactory {
         loop.addChildrenToBack(body);
         if (loopType == LOOP_WHILE || loopType == LOOP_FOR) {
             // propagate lineno to condition
-            loop.addChildrenToBack(new Node(Token.EMPTY, loop.getLineno()));
+            loop.addChildrenToBack(new Node(Token.EMPTY, loop.getLineno(), loop.getColumn()));
         }
         loop.addChildToBack(condTarget);
         loop.addChildToBack(IFEQ);
@@ -1501,8 +1623,7 @@ public final class IRFactory {
             Node assign;
             if (destructuring != -1) {
                 assign =
-                        parser.createDestructuringAssignment(
-                                declType, lvalue, id, (AstNode node) -> transform(node));
+                        parser.createDestructuringAssignment(declType, lvalue, id, this::transform);
                 if (!isForEach
                         && !isForOf
                         && (destructuring == Token.OBJECTLIT || destructuringLen != 2)) {
@@ -1542,7 +1663,7 @@ public final class IRFactory {
      * <p>... and a goto to GOTO around these handlers.
      */
     private Node createTryCatchFinally(
-            Node tryBlock, Node catchBlocks, Node finallyBlock, int lineno) {
+            Node tryBlock, Node catchBlocks, Node finallyBlock, int lineno, int column) {
         boolean hasFinally =
                 (finallyBlock != null)
                         && (finallyBlock.getType() != Token.BLOCK || finallyBlock.hasChildren());
@@ -1561,7 +1682,8 @@ public final class IRFactory {
         }
 
         Node handlerBlock = new Node(Token.LOCAL_BLOCK);
-        Jump pn = new Jump(Token.TRY, tryBlock, lineno);
+        Jump pn = new Jump(Token.TRY, tryBlock);
+        pn.setLineColumnNumber(lineno, column);
         pn.putProp(Node.LOCAL_BLOCK_PROP, handlerBlock);
 
         if (hasCatch) {
@@ -1617,10 +1739,10 @@ public final class IRFactory {
             // after_catch:
             //
             // If there is no default catch, then the last with block
-            // arround  "somethingDefault;" is replaced by "rethrow;"
+            // around  "somethingDefault;" is replaced by "rethrow;"
 
             // It is assumed that catch handler generation will store
-            // exeception object in handlerBlock register
+            // exception object in handlerBlock register
 
             // Block with local for exception scope objects
             Node catchScopeBlock = new Node(Token.LOCAL_BLOCK);
@@ -1630,7 +1752,7 @@ public final class IRFactory {
             boolean hasDefault = false;
             int scopeIndex = 0;
             while (cb != null) {
-                int catchLineNo = cb.getLineno();
+                int catchLineno = cb.getLineno(), catchColumn = cb.getColumn();
 
                 Node name = cb.getFirstChild();
                 Node cond = name.getNext();
@@ -1652,7 +1774,7 @@ public final class IRFactory {
                     condStmt = catchStatement;
                     hasDefault = true;
                 } else {
-                    condStmt = createIf(cond, catchStatement, null, catchLineNo);
+                    condStmt = createIf(cond, catchStatement, null, catchLineno, catchColumn);
                 }
 
                 // Generate code to create the scope object and store
@@ -1664,7 +1786,11 @@ public final class IRFactory {
 
                 // Add with statement based on catch scope object
                 catchScopeBlock.addChildToBack(
-                        createWith(createUseLocal(catchScopeBlock), condStmt, catchLineNo));
+                        createWith(
+                                createUseLocal(catchScopeBlock),
+                                condStmt,
+                                catchLineno,
+                                catchColumn));
 
                 // move to next cb
                 cb = cb.getNext();
@@ -1703,17 +1829,17 @@ public final class IRFactory {
         return handlerBlock;
     }
 
-    private Node createWith(Node obj, Node body, int lineno) {
+    private Node createWith(Node obj, Node body, int lineno, int column) {
         parser.setRequiresActivation();
-        Node result = new Node(Token.BLOCK, lineno);
+        Node result = new Node(Token.BLOCK, lineno, column);
         result.addChildToBack(new Node(Token.ENTERWITH, obj));
-        Node bodyNode = new Node(Token.WITH, body, lineno);
+        Node bodyNode = new Node(Token.WITH, body, lineno, column);
         result.addChildrenToBack(bodyNode);
         result.addChildToBack(new Node(Token.LEAVEWITH));
         return result;
     }
 
-    private static Node createIf(Node cond, Node ifTrue, Node ifFalse, int lineno) {
+    private static Node createIf(Node cond, Node ifTrue, Node ifFalse, int lineno, int column) {
         int condStatus = isAlwaysDefinedBoolean(cond);
         if (condStatus == ALWAYS_TRUE_BOOLEAN) {
             return ifTrue;
@@ -1722,10 +1848,10 @@ public final class IRFactory {
                 return ifFalse;
             }
             // Replace if (false) xxx by empty block
-            return new Node(Token.BLOCK, lineno);
+            return new Node(Token.BLOCK, lineno, column);
         }
 
-        Node result = new Node(Token.BLOCK, lineno);
+        Node result = new Node(Token.BLOCK, lineno, column);
         Node ifNotTarget = Node.newTarget();
         Jump IFNE = new Jump(Token.IFNE, cond);
         IFNE.target = ifNotTarget;
@@ -1741,6 +1867,11 @@ public final class IRFactory {
             result.addChildToBack(endTarget);
         } else {
             result.addChildToBack(ifNotTarget);
+        }
+
+        if (cond.getFirstChild() != null) {
+            Node conditionalChild = cond.getFirstChild();
+            result.setLineColumnNumber(conditionalChild.getLineno(), conditionalChild.getColumn());
         }
 
         return result;
@@ -1781,6 +1912,9 @@ public final class IRFactory {
                     } else {
                         // Always evaluate delete operand, see ES5 11.4.1 & bug #726121
                         n = new Node(nodeType, new Node(Token.TRUE), child);
+                    }
+                    if (child.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
+                        n.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
                     }
                     return n;
                 }
@@ -1875,18 +2009,47 @@ public final class IRFactory {
     }
 
     private Node createPropertyGet(
-            Node target, String namespace, String name, int memberTypeFlags) {
+            Node target, String namespace, String name, int memberTypeFlags, int type) {
         if (namespace == null && memberTypeFlags == 0) {
             if (target == null) {
                 return parser.createName(name);
             }
             parser.checkActivationName(name, Token.GETPROP);
             if (ScriptRuntime.isSpecialProperty(name)) {
+                if (target.getType() == Token.SUPER) {
+                    // We have an access to super.__proto__ or super.__parent__.
+                    // This needs to behave in the same way as this.__proto__ - it really is not
+                    // obvious why, but you can test it in v8 or any other engine. So, we just
+                    // replace SUPER with THIS in the AST. It's a bit hacky, but it works - see the
+                    // test cases in SuperTest!
+                    if (!(target instanceof KeywordLiteral)) {
+                        throw Kit.codeBug();
+                    }
+                    KeywordLiteral oldTarget = (KeywordLiteral) target;
+                    target =
+                            new KeywordLiteral(
+                                    oldTarget.getPosition(), oldTarget.getLength(), Token.THIS);
+                    target.setLineColumnNumber(oldTarget.getLineno(), oldTarget.getColumn());
+                }
+
                 Node ref = new Node(Token.REF_SPECIAL, target);
                 ref.putProp(Node.NAME_PROP, name);
-                return new Node(Token.GET_REF, ref);
+                Node getRef = new Node(Token.GET_REF, ref);
+                if (type == Token.QUESTION_DOT) {
+                    ref.putIntProp(Node.OPTIONAL_CHAINING, 1);
+                    getRef.putIntProp(Node.OPTIONAL_CHAINING, 1);
+                }
+                return getRef;
             }
-            return new Node(Token.GETPROP, target, Node.newString(name));
+
+            Node node = new Node(Token.GETPROP, target, Node.newString(name));
+            if (type == Token.QUESTION_DOT) {
+                node.putIntProp(Node.OPTIONAL_CHAINING, 1);
+            }
+            if (target.getType() == Token.SUPER) {
+                node.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+            }
+            return node;
         }
         Node elem = Node.newString(name);
         memberTypeFlags |= Node.PROPERTY_FLAG;
@@ -1971,7 +2134,7 @@ public final class IRFactory {
                 }
                 // can't do anything if we don't know  both types - since
                 // 0 + object is supposed to call toString on the object and do
-                // string concantenation rather than addition
+                // string concatenation rather than addition
                 break;
 
             case Token.SUB:
@@ -2027,7 +2190,7 @@ public final class IRFactory {
                         return left;
                     } else if (rd == 1.0) {
                         // second 1: x/1 -> +x
-                        // not simply x to force number convertion
+                        // not simply x to force number conversion
                         return new Node(Token.POS, left);
                     }
                 }
@@ -2079,8 +2242,7 @@ public final class IRFactory {
                     parser.reportError("msg.bad.destruct.op");
                     return right;
                 }
-                return parser.createDestructuringAssignment(
-                        -1, left, right, (AstNode node) -> transform(node));
+                return parser.createDestructuringAssignment(-1, left, right, this::transform);
             }
             parser.reportError("msg.bad.assign.left");
             return right;
@@ -2090,7 +2252,9 @@ public final class IRFactory {
         int assignOp;
         switch (assignType) {
             case Token.ASSIGN:
-                return parser.simpleAssignment(left, right);
+                {
+                    return propagateSuperFromLhs(parser.simpleAssignment(left, right), left);
+                }
             case Token.ASSIGN_BITOR:
                 assignOp = Token.BITOR;
                 break;
@@ -2133,6 +2297,9 @@ public final class IRFactory {
             case Token.ASSIGN_EXP:
                 assignOp = Token.EXP;
                 break;
+            case Token.ASSIGN_NULLISH:
+                assignOp = Token.NULLISH_COALESCING;
+                break;
             default:
                 throw Kit.codeBug();
         }
@@ -2143,7 +2310,7 @@ public final class IRFactory {
                 {
                     Node op = new Node(assignOp, left, right);
                     Node lvalueLeft = Node.newString(Token.BINDNAME, left.getString());
-                    return new Node(Token.SETNAME, lvalueLeft, op);
+                    return propagateSuperFromLhs(new Node(Token.SETNAME, lvalueLeft, op), left);
                 }
             case Token.GETPROP:
             case Token.GETELEM:
@@ -2155,7 +2322,7 @@ public final class IRFactory {
 
                     Node opLeft = new Node(Token.USE_STACK);
                     Node op = new Node(assignOp, opLeft, right);
-                    return new Node(type, obj, id, op);
+                    return propagateSuperFromLhs(new Node(type, obj, id, op), left);
                 }
             case Token.GET_REF:
                 {
@@ -2163,11 +2330,18 @@ public final class IRFactory {
                     parser.checkMutableReference(ref);
                     Node opLeft = new Node(Token.USE_STACK);
                     Node op = new Node(assignOp, opLeft, right);
-                    return new Node(Token.SET_REF_OP, ref, op);
+                    return propagateSuperFromLhs(new Node(Token.SET_REF_OP, ref, op), left);
                 }
         }
 
         throw Kit.codeBug();
+    }
+
+    private Node propagateSuperFromLhs(Node result, Node left) {
+        if (left.getIntProp(Node.SUPER_PROPERTY_ACCESS, 0) == 1) {
+            result.putIntProp(Node.SUPER_PROPERTY_ACCESS, 1);
+        }
+        return result;
     }
 
     private static Node createUseLocal(Node localBlock) {

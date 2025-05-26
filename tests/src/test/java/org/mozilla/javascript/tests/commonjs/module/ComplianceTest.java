@@ -20,7 +20,7 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.commonjs.module.Require;
 import org.mozilla.javascript.commonjs.module.provider.StrongCachingModuleScriptProvider;
 import org.mozilla.javascript.commonjs.module.provider.UrlModuleSourceProvider;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 @RunWith(Parameterized.class)
 public class ComplianceTest {
@@ -66,7 +66,7 @@ public class ComplianceTest {
 
     @Test
     public void require() throws Throwable {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     ScriptableObject.putProperty(scope, "print", new Print(scope));

@@ -6,9 +6,6 @@
 
 package org.mozilla.javascript;
 
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-
 /**
  * This class implements a JavaScript function that may be used as a constructor by delegating to an
  * interface that can be easily implemented as a lambda. The LambdaFunction class may be used to add
@@ -34,14 +31,16 @@ public class LambdaConstructor extends LambdaFunction {
     /** By default, the constructor may be invoked either way */
     public static final int CONSTRUCTOR_DEFAULT = CONSTRUCTOR_FUNCTION | CONSTRUCTOR_NEW;
 
-    // Lambdas should not be serialized.
-    private final transient Constructable targetConstructor;
+    // Lambdas may be serialized, which means that we need the target to be serializable.
+    protected final SerializableConstructable targetConstructor;
     private final int flags;
 
     /**
      * Create a new function that may be used as a constructor. The new object will have the
      * Function prototype and no parent. The caller is responsible for binding this object to the
-     * appropriate scope.
+     * appropriate scope. The new constructor function can be invoked using "new" or by calling it
+     * directly, and in either case will result in a new object being returned and wired to the
+     * correct prototype and scope.
      *
      * @param scope scope of the calling context
      * @param name name of the function
@@ -49,36 +48,81 @@ public class LambdaConstructor extends LambdaFunction {
      * @param target an object that implements the function in Java. Since Constructable is a
      *     single-function interface this will typically be implemented as a lambda.
      */
-    public LambdaConstructor(Scriptable scope, String name, int length, Constructable target) {
+    public LambdaConstructor(
+            Scriptable scope, String name, int length, SerializableConstructable target) {
         super(scope, name, length, null);
         this.targetConstructor = target;
         this.flags = CONSTRUCTOR_DEFAULT;
     }
 
     /**
-     * Create a new function and control whether it may be invoked using new, as a function, or
-     * both.
+     * Create a new function that may be used as a constructor. The new object will have the
+     * Function prototype and no parent. The caller is responsible for binding this object to the
+     * appropriate scope. The "flags" argument controls whether the function may be invoked using
+     * "new," via a direct call, or both. If allowed by the flags, then the constructor will have
+     * the same effect either way. If not allowed by the flags, then a TypeError will be thrown.
+     *
+     * @param scope scope of the calling context
+     * @param name name of the function
+     * @param length the arity of the function
+     * @param flags which may be a combination of CONSTRUCTOR_NEW and CONSTRUCTOR_FUNCTION
+     * @param target an object that implements the function in Java. Since Constructable is a
+     *     single-function interface this will typically be implemented as a lambda.
      */
     public LambdaConstructor(
-            Scriptable scope, String name, int length, int flags, Constructable target) {
+            Scriptable scope,
+            String name,
+            int length,
+            int flags,
+            SerializableConstructable target) {
         super(scope, name, length, null);
         this.targetConstructor = target;
         this.flags = flags;
     }
 
     /**
-     * Create a new constructor that may be called using new or as a function, and exhibits
-     * different behavior for each.
+     * Create a new function that may be used as a constructor. The new object will have the
+     * Function prototype and no parent. The caller is responsible for binding this object to the
+     * appropriate scope. The new constructor function will have different behavior depending on
+     * whether it is invoked via "new" or via a direct call. In the case of "new", a new object with
+     * a prototype and scope chain be returned, but in the case of a direct call, the user must
+     * implement whatever they need. This is typically used in the case of functions like the native
+     * Date constructor, which has totally different behavior depending on how it's invoked.
+     *
+     * @param scope scope of the calling context
+     * @param name name of the function
+     * @param length the arity of the function
+     * @param target an object that implements the function in Java. Since Constructable is a
+     *     single-function interface this will typically be implemented as a lambda.
      */
     public LambdaConstructor(
             Scriptable scope,
             String name,
             int length,
-            Callable target,
-            Constructable targetConstructor) {
-        super(scope, name, length, target);
+            SerializableCallable target,
+            SerializableConstructable targetConstructor) {
+        super(scope, name, length, target, true);
         this.targetConstructor = targetConstructor;
         this.flags = CONSTRUCTOR_DEFAULT;
+    }
+
+    public LambdaConstructor(
+            Scriptable scope,
+            String name,
+            int length,
+            Object prototype,
+            SerializableCallable target,
+            SerializableConstructable targetConstructor) {
+        super(scope, name, length, target, false);
+        setPrototypeProperty(prototype);
+        this.targetConstructor = targetConstructor;
+        this.flags =
+                (target != null ? CONSTRUCTOR_FUNCTION : 0)
+                        | (targetConstructor != null ? CONSTRUCTOR_NEW : 0);
+    }
+
+    protected Constructable getTargetConstructor() {
+        return targetConstructor;
     }
 
     @Override
@@ -87,7 +131,7 @@ public class LambdaConstructor extends LambdaFunction {
             throw ScriptRuntime.typeErrorById("msg.constructor.no.function", getFunctionName());
         }
         if (target == null) {
-            return targetConstructor.construct(cx, scope, args);
+            return fireConstructor(cx, scope, args);
         }
         return target.call(cx, scope, thisObj, args);
     }
@@ -97,6 +141,10 @@ public class LambdaConstructor extends LambdaFunction {
         if ((flags & CONSTRUCTOR_NEW) == 0) {
             throw ScriptRuntime.typeErrorById("msg.no.new", getFunctionName());
         }
+        return fireConstructor(cx, scope, args);
+    }
+
+    private Scriptable fireConstructor(Context cx, Scriptable scope, Object[] args) {
         Scriptable obj = targetConstructor.construct(cx, scope, args);
         obj.setPrototype(getClassPrototype());
         obj.setParentScope(scope);
@@ -107,7 +155,8 @@ public class LambdaConstructor extends LambdaFunction {
      * Define a function property on the prototype of the constructor using a LambdaFunction under
      * the covers.
      */
-    public void definePrototypeMethod(Scriptable scope, String name, int length, Callable target) {
+    public void definePrototypeMethod(
+            Scriptable scope, String name, int length, SerializableCallable target) {
         LambdaFunction f = new LambdaFunction(scope, name, length, target);
         ScriptableObject proto = getPrototypeScriptable();
         proto.defineProperty(name, f, 0);
@@ -121,10 +170,99 @@ public class LambdaConstructor extends LambdaFunction {
             Scriptable scope,
             String name,
             int length,
-            Callable target,
+            SerializableCallable target,
             int attributes,
             int propertyAttributes) {
-        LambdaFunction f = new LambdaFunction(scope, name, length, target);
+        definePrototypeMethod(scope, name, length, target, attributes, propertyAttributes, true);
+    }
+
+    /**
+     * Define a function property on the prototype of the constructor using a LambdaFunction under
+     * the covers and control the prototype of the new function
+     */
+    public void definePrototypeMethod(
+            Scriptable scope,
+            String name,
+            int length,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes,
+            boolean defaultPrototype) {
+        LambdaFunction f = new LambdaFunction(scope, name, length, target, defaultPrototype);
+        f.setStandardPropertyAttributes(propertyAttributes);
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Define a function property on the prototype of the constructor using a LambdaFunction under
+     * the covers.
+     */
+    public void definePrototypeMethod(
+            Scriptable scope,
+            SymbolKey name,
+            int length,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes) {
+        LambdaFunction f = new LambdaFunction(scope, "[" + name.getName() + "]", length, target);
+        f.setStandardPropertyAttributes(propertyAttributes);
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Define a function property on the prototype of the constructor using a LambdaFunction under
+     * the covers.
+     */
+    public void definePrototypeMethod(
+            Scriptable scope,
+            String name,
+            int length,
+            Object prototype,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes) {
+        LambdaFunction f = new LambdaFunction(scope, name, length, prototype, target);
+        f.setStandardPropertyAttributes(propertyAttributes);
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Define a function property on the prototype of the constructor using a KnownBuiltInFunction
+     * under the covers.
+     */
+    public void defineKnownBuiltInPrototypeMethod(
+            Object tag,
+            Scriptable scope,
+            String name,
+            int length,
+            Object prototype,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes) {
+        KnownBuiltInFunction f =
+                new KnownBuiltInFunction(tag, scope, name, length, prototype, target);
+        f.setStandardPropertyAttributes(propertyAttributes);
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Define a function property on the prototype of the constructor using a LambdaFunction under
+     * the covers.
+     */
+    public void definePrototypeMethod(
+            Scriptable scope,
+            SymbolKey name,
+            int length,
+            Object prototype,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes) {
+        LambdaFunction f =
+                new LambdaFunction(scope, "[" + name.getName() + "]", length, prototype, target);
         f.setStandardPropertyAttributes(propertyAttributes);
         ScriptableObject proto = getPrototypeScriptable();
         proto.defineProperty(name, f, attributes);
@@ -141,23 +279,70 @@ public class LambdaConstructor extends LambdaFunction {
         proto.defineProperty(key, value, attributes);
     }
 
+    public void definePrototypeProperty(Context cx, String name, ScriptableObject descriptor) {
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineOwnProperty(cx, name, descriptor);
+    }
+
+    public void definePrototypeProperty(Context cx, Symbol key, ScriptableObject descriptor) {
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineOwnProperty(cx, key, descriptor);
+    }
+
+    /**
+     * Define a property on the prototype using a function. The function will be wired to a
+     * JavaScript function, so the resulting property will look just like one that was defined using
+     * "Object.defineOwnProperty" with a property descriptor.
+     */
     public void definePrototypeProperty(
-            Context cx,
-            String name,
-            java.util.function.Function<Scriptable, Object> getter,
-            int attributes) {
+            Context cx, String name, ScriptableObject.LambdaGetterFunction getter, int attributes) {
         ScriptableObject proto = getPrototypeScriptable();
         proto.defineProperty(cx, name, getter, null, attributes);
     }
 
     public void definePrototypeProperty(
+            Context cx, Symbol key, ScriptableObject.LambdaGetterFunction getter, int attributes) {
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(cx, key, getter, null, attributes);
+    }
+
+    /**
+     * Define a property on the prototype using functions for getter and setter. The function will
+     * be wired to a JavaScript function, so the resulting property will look just like one that was
+     * defined using "Object.defineOwnProperty" with a property descriptor.
+     */
+    public void definePrototypeProperty(
             Context cx,
             String name,
-            Function<Scriptable, Object> getter,
-            BiConsumer<Scriptable, Object> setter,
+            ScriptableObject.LambdaGetterFunction getter,
+            ScriptableObject.LambdaSetterFunction setter,
             int attributes) {
         ScriptableObject proto = getPrototypeScriptable();
         proto.defineProperty(cx, name, getter, setter, attributes);
+    }
+
+    public void definePrototypeProperty(
+            Context cx,
+            Symbol key,
+            ScriptableObject.LambdaGetterFunction getter,
+            ScriptableObject.LambdaSetterFunction setter,
+            int attributes) {
+        ScriptableObject proto = getPrototypeScriptable();
+        proto.defineProperty(cx, key, getter, setter, attributes);
+    }
+
+    /** Define a property on the prototype that has the same value as another property. */
+    public void definePrototypeAlias(String name, SymbolKey alias, int attributes) {
+        ScriptableObject proto = getPrototypeScriptable();
+        Object val = proto.get(name, proto);
+        proto.defineProperty(alias, val, attributes);
+    }
+
+    /** Define a property on the prototype that has the same value as another property. */
+    public void definePrototypeAlias(String name, String alias, int attributes) {
+        ScriptableObject proto = getPrototypeScriptable();
+        Object val = proto.get(name, proto);
+        proto.defineProperty(alias, val, attributes);
     }
 
     /**
@@ -171,7 +356,11 @@ public class LambdaConstructor extends LambdaFunction {
      * @param attributes the attributes to set on the new property
      */
     public void defineConstructorMethod(
-            Scriptable scope, String name, int length, Callable target, int attributes) {
+            Scriptable scope,
+            String name,
+            int length,
+            SerializableCallable target,
+            int attributes) {
         LambdaFunction f = new LambdaFunction(scope, name, length, target);
         defineProperty(name, f, attributes);
     }
@@ -191,7 +380,7 @@ public class LambdaConstructor extends LambdaFunction {
             Symbol key,
             String name,
             int length,
-            Callable target,
+            SerializableCallable target,
             int attributes) {
         LambdaFunction f = new LambdaFunction(scope, name, length, target);
         defineProperty(key, f, attributes);
@@ -206,12 +395,46 @@ public class LambdaConstructor extends LambdaFunction {
             Scriptable scope,
             String name,
             int length,
-            Callable target,
+            SerializableCallable target,
             int attributes,
             int propertyAttributes) {
         LambdaFunction f = new LambdaFunction(scope, name, length, target);
         f.setStandardPropertyAttributes(propertyAttributes);
         defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Define a function property directly on the constructor that is implemented under the covers
+     * by a LambdaFunction, and override the properties of its "name", "length", "arity", and
+     * "protoyupe" properties.
+     */
+    public void defineConstructorMethod(
+            Scriptable scope,
+            String name,
+            int length,
+            Object prototype,
+            SerializableCallable target,
+            int attributes,
+            int propertyAttributes) {
+        LambdaFunction f = new LambdaFunction(scope, name, length, prototype, target);
+        f.setStandardPropertyAttributes(propertyAttributes);
+        defineProperty(name, f, attributes);
+    }
+
+    /**
+     * Replace the default "Object" prototype with a prototype of a specific implementation. This is
+     * only necessary for a few built-in constructors, like Boolean, that must have their prototype
+     * be an object with a specific "internal data slot."
+     */
+    public void setPrototypeScriptable(ScriptableObject proto) {
+        proto.setParentScope(getParentScope());
+        setPrototypeProperty(proto);
+        Scriptable objectProto = getObjectPrototype(this);
+        if (proto != objectProto) {
+            // not the one we just made, it must remain grounded
+            proto.setPrototype(objectProto);
+        }
+        proto.defineProperty("constructor", this, DONTENUM);
     }
 
     /**

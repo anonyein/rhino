@@ -38,6 +38,7 @@ public class ScriptNode extends Scope {
     private Object compilerData;
     private int tempNumber = 0;
     private boolean inStrictMode;
+    private boolean isMethodDefinition;
 
     {
         // during parsing, a ScriptNode or FunctionNode's top scope is itself
@@ -118,7 +119,9 @@ public class ScriptNode extends Scope {
         this.rawSource = rawSource;
     }
 
-    /** @return the raw source, or {@code null} if it was not recorded. */
+    /**
+     * @return the raw source, or {@code null} if it was not recorded.
+     */
     public String getRawSource() {
         return rawSource;
     }
@@ -245,6 +248,17 @@ public class ScriptNode extends Scope {
         return false;
     }
 
+    public List<Object> getDefaultParams() {
+        return null;
+    }
+
+    public List<Node[]> getDestructuringRvalues() {
+        return null;
+    }
+
+    // Overridden in FunctionNode
+    public void putDestructuringRvalues(Node left, Node right) {}
+
     void addSymbol(Symbol symbol) {
         if (variableNames != null) codeBug();
         if (symbol.getDeclType() == Token.LP) {
@@ -314,6 +328,14 @@ public class ScriptNode extends Scope {
 
     public boolean isInStrictMode() {
         return inStrictMode;
+    }
+
+    public boolean isMethodDefinition() {
+        return isMethodDefinition;
+    }
+
+    public void setMethodDefinition(boolean methodDefinition) {
+        isMethodDefinition = methodDefinition;
     }
 
     @Override

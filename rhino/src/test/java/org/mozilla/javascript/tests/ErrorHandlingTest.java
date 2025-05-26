@@ -13,7 +13,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mozilla.javascript.JavaScriptException;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.WrappedException;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Unit tests to check error handling. Especially, we expect to get a correct cause, when an error
@@ -39,6 +41,12 @@ public class ErrorHandlingTest {
                 e -> {
                     Assert.assertEquals(JavaScriptException.class, e.getClass());
                     Assert.assertEquals("Error: foo (myScript.js#1)", e.getMessage());
+                });
+        testIt(
+                "throw new EvalError('foo')",
+                e -> {
+                    Assert.assertEquals(JavaScriptException.class, e.getClass());
+                    Assert.assertEquals("EvalError: foo (myScript.js#1)", e.getMessage());
                 });
         testIt(
                 "try { throw new Error('foo') } catch (e) { throw e }",
@@ -98,8 +106,17 @@ public class ErrorHandlingTest {
                 });
     }
 
+    @Test
+    public void stackProvider() {
+        String nl = System.lineSeparator();
+        Utils.assertWithAllModes(Undefined.instance, "Error.stack");
+        Utils.assertWithAllModes("\tat test.js:0" + nl, "new Error().stack");
+        Utils.assertWithAllModes(Undefined.instance, "EvalError.stack");
+        Utils.assertWithAllModes("\tat test.js:0" + nl, "new EvalError('foo').stack");
+    }
+
     private void testIt(final String script, final Consumer<Throwable> exception) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     try {
                         final ScriptableObject scope = cx.initStandardObjects();

@@ -5,7 +5,7 @@
 package org.mozilla.javascript.tests.es6;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 /** Tests for Arguments support. */
 public class ArgumentsTest {
@@ -18,7 +18,7 @@ public class ArgumentsTest {
                         + "}"
                         + "foo()";
 
-        Utils.assertWithAllOptimizationLevelsES6(true, code);
+        Utils.assertWithAllModes_ES6(true, code);
     }
 
     @Test
@@ -29,7 +29,7 @@ public class ArgumentsTest {
                         + "}"
                         + "foo()";
 
-        Utils.assertWithAllOptimizationLevelsES6(true, code);
+        Utils.assertWithAllModes_ES6(true, code);
     }
 
     @Test
@@ -44,6 +44,30 @@ public class ArgumentsTest {
                         + "}"
                         + "foo(1, 2, 3, 5)";
 
-        Utils.assertWithAllOptimizationLevelsES6("1235", code);
+        Utils.assertWithAllModes_ES6("1235", code);
+    }
+
+    @Test
+    public void argumentsNestedLambdas() {
+        String code =
+                "var foo = (function foo() {\n"
+                        + "    return () => arguments[0];\n"
+                        + "})(1);\n"
+                        + "foo()";
+
+        Utils.assertWithAllModes_ES6(1, code);
+    }
+
+    @Test
+    public void argumentsNestedNestedLambdas() {
+        String code =
+                "var foo = (function foo() {\n"
+                        + "   return () => {"
+                        + "       return () => arguments[0];\n"
+                        + "   }\n"
+                        + "})(1);\n"
+                        + "foo()()";
+
+        Utils.assertWithAllModes_ES6(1, code);
     }
 }

@@ -6,12 +6,15 @@
 
 package org.mozilla.javascript;
 
+import static org.mozilla.javascript.Context.reportError;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.Jump;
+import org.mozilla.javascript.ast.Name;
 import org.mozilla.javascript.ast.Scope;
 import org.mozilla.javascript.ast.ScriptNode;
 
@@ -177,7 +180,8 @@ public class NodeTransformer {
                                     unwind = new Node(Token.LEAVEWITH);
                                 }
                                 if (unwindBlock == null) {
-                                    unwindBlock = new Node(Token.BLOCK, node.getLineno());
+                                    unwindBlock = new Node(Token.BLOCK);
+                                    unwind.setLineColumnNumber(node.getLineno(), node.getColumn());
                                 }
                                 unwindBlock.addChildToBack(unwind);
                             }
@@ -267,7 +271,7 @@ public class NodeTransformer {
                         }
                         // fall through to process let declaration...
                     }
-                    /* fall through */
+                /* fall through */
                 case Token.CONST:
                 case Token.VAR:
                     {
@@ -294,7 +298,8 @@ public class NodeTransformer {
                                 // to a LETEXPR
                                 if (n.getType() != Token.LETEXPR) throw Kit.codeBug();
                             }
-                            Node pop = new Node(Token.EXPR_VOID, n, node.getLineno());
+                            Node pop = new Node(Token.EXPR_VOID, n);
+                            pop.setLineColumnNumber(node.getLineno(), node.getColumn());
                             result.addChildToBack(pop);
                         }
                         node = replaceCurrent(parent, previous, node, result);
@@ -343,8 +348,16 @@ public class NodeTransformer {
                 case Token.SETNAME:
                     if (inStrictMode) {
                         node.setType(Token.STRICT_SETNAME);
+                        if (node.getFirstChild().getType() == Token.BINDNAME) {
+                            Node name = node.getFirstChild();
+                            if (name instanceof Name
+                                    && ((Name) name).getIdentifier().equals("eval")) {
+                                // Don't allow set of `eval` in strict mode
+                                reportError("syntax error");
+                            }
+                        }
                     }
-                    /* fall through */
+                /* fall through */
                 case Token.NAME:
                 case Token.SETCONST:
                 case Token.DELPROP:

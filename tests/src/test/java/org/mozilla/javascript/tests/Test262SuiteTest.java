@@ -45,10 +45,12 @@ import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.Kit;
 import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
+import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
-import org.mozilla.javascript.annotations.JSFunction;
-import org.mozilla.javascript.annotations.JSGetter;
+import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.TopLevel;
+import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.drivers.TestUtils;
 import org.mozilla.javascript.tools.SourceReader;
 import org.mozilla.javascript.tools.shell.ShellContextFactory;
@@ -70,8 +72,6 @@ public class Test262SuiteTest {
     /** The test must be executed just once--in non-strict mode, only. */
     private static final String FLAG_NO_STRICT = "noStrict";
 
-    static final int[] OPT_LEVELS;
-
     private static final File testDir = new File("test262/test");
     private static final String testHarnessDir = "test262/harness/";
     private static final String testProperties;
@@ -81,8 +81,8 @@ public class Test262SuiteTest {
     private static final boolean statsEnabled;
     private static final boolean includeUnsupported;
 
-    static Map<String, Script> HARNESS_SCRIPT_CACHE = new ConcurrentHashMap<>();
-    static Map<Test262Case, TestResultTracker> RESULT_TRACKERS = new LinkedHashMap<>();
+    static final Map<String, Script> HARNESS_SCRIPT_CACHE = new ConcurrentHashMap<>();
+    static final Map<Test262Case, TestResultTracker> RESULT_TRACKERS = new LinkedHashMap<>();
 
     static ShellContextFactory CTX_FACTORY = new ShellContextFactory();
 
@@ -91,11 +91,6 @@ public class Test262SuiteTest {
                     Arrays.asList(
                             "Atomics",
                             "IsHTMLDDA",
-                            "Proxy",
-                            "Reflect",
-                            "Reflect.construct",
-                            "Reflect.set",
-                            "Reflect.setPrototypeOf",
                             "SharedArrayBuffer",
                             "async-functions",
                             "async-iteration",
@@ -103,17 +98,11 @@ public class Test262SuiteTest {
                             "class-fields-private",
                             "class-fields-public",
                             "default-arg",
-                            "default-parameters",
                             "new.target",
                             "object-rest",
                             "regexp-dotall",
-                            "regexp-lookbehind",
-                            "regexp-named-groups",
                             "regexp-unicode-property-escapes",
                             "resizable-arraybuffer",
-                            "super",
-                            "String.prototype.matchAll",
-                            "Symbol.matchAll",
                             "tail-call-optimization",
                             "u180e"));
 
@@ -140,33 +129,9 @@ public class Test262SuiteTest {
                     includeUnsupported =
                             updateProps.isEmpty() || updateProps.indexOf("unsupported") != -1;
             }
-
-            if (getOverriddenLevel() != null) {
-                System.out.println(
-                        "Ignoring custom optLevels because the updateTest262Properties param is set");
-            }
-
-            OPT_LEVELS = Utils.DEFAULT_OPT_LEVELS;
         } else {
             updateTest262Properties = rollUpEnabled = statsEnabled = includeUnsupported = false;
-
-            // Reduce the number of tests that we run by a factor of three...
-            String overriddenLevel = getOverriddenLevel();
-            if (overriddenLevel != null) {
-                OPT_LEVELS = new int[] {Integer.parseInt(overriddenLevel)};
-            } else {
-                OPT_LEVELS = Utils.DEFAULT_OPT_LEVELS;
-            }
         }
-    }
-
-    private static String getOverriddenLevel() {
-        String optLevel = System.getProperty("TEST_OPTLEVEL");
-
-        if (optLevel == null || optLevel.isEmpty()) {
-            optLevel = System.getenv("TEST_262_OPTLEVEL");
-        }
-        return optLevel;
     }
 
     @BeforeAll
@@ -287,7 +252,7 @@ public class Test262SuiteTest {
                         }
 
                         if (!testFile.isDirectory()) {
-                            testResult = tt.getResult(OPT_LEVELS, testCases[j]);
+                            testResult = tt.getResult(testCases[j]);
 
                             if (testResult == null) {
                                 // At least one passing test in currentParent directory, so prevent
@@ -302,7 +267,7 @@ public class Test262SuiteTest {
                                                         .relativize(testFilePath)
                                                         .toString()
                                                         .replace("\\", "/")
-                                                + (statsEnabled && testResult != ""
+                                                + (statsEnabled && !testResult.isEmpty()
                                                         ? " " + testResult
                                                         : "");
                                 if (tt.comment != null && !tt.comment.isEmpty()) {
@@ -428,14 +393,52 @@ public class Test262SuiteTest {
      */
     private static final Pattern LINE_SPLITTER =
             Pattern.compile(
-                    "(~|(?:\\s*)(?:!|#)(?:\\s*)|\\s+)?(\\S+)(?:[^\\S\\r\\n]+(?:strict|non-strict|non-interpreted|\\d+/\\d+ \\(\\d+(?:\\.\\d+)?%%\\)|\\{(?:non-strict|strict|unsupported): \\[.*\\],?\\}))?[^\\S\\r\\n]*(.*)");
+                    "(~|(?:\\s*)(?:!|#)(?:\\s*)|\\s+)?(\\S+)(?:[^\\S\\r\\n]+"
+                            + "(?:strict|non-strict|compiled-strict|compiled-non-strict|interpreted-strict|interpreted-non-strict|compiled|interpreted|"
+                            + "\\d+/\\d+ \\(\\d+(?:\\.\\d+)?%%\\)|\\{(?:non-strict|strict|unsupported): \\[.*\\],?\\}))?[^\\S\\r\\n]*(.*)");
 
-    /** @see https://github.com/tc39/test262/blob/main/INTERPRETING.md#host-defined-functions */
-    public static class $262 {
-        private ScriptableObject scope;
+    /**
+     * @see https://github.com/tc39/test262/blob/main/INTERPRETING.md#host-defined-functions
+     */
+    public static class $262 extends ScriptableObject {
 
-        static $262 install(ScriptableObject scope) {
-            $262 instance = new $262(scope);
+        $262() {
+            super();
+        }
+
+        $262(Scriptable scope, Scriptable prototype) {
+            super(scope, prototype);
+        }
+
+        static $262 init(Context cx, Scriptable scope) {
+            $262 proto = new $262();
+            proto.setPrototype(getObjectPrototype(scope));
+            proto.setParentScope(scope);
+
+            proto.defineProperty(scope, "gc", 0, $262::gc, DONTENUM, DONTENUM | READONLY);
+            proto.defineProperty(
+                    scope, "createRealm", 0, $262::createRealm, DONTENUM, DONTENUM | READONLY);
+            proto.defineProperty(
+                    scope, "evalScript", 1, $262::evalScript, DONTENUM, DONTENUM | READONLY);
+            proto.defineProperty(
+                    scope,
+                    "detachArrayBuffer",
+                    0,
+                    $262::detachArrayBuffer,
+                    DONTENUM,
+                    DONTENUM | READONLY);
+
+            proto.defineProperty(cx, "global", $262::getGlobal, null, DONTENUM | READONLY);
+            proto.defineProperty(cx, "agent", $262::getAgent, null, DONTENUM | READONLY);
+
+            proto.defineProperty(SymbolKey.TO_STRING_TAG, "__262__", DONTENUM | READONLY);
+
+            ScriptableObject.defineProperty(scope, "__262__", proto, DONTENUM);
+            return proto;
+        }
+
+        static $262 install(ScriptableObject scope, Scriptable parentScope) {
+            $262 instance = new $262(scope, parentScope);
 
             scope.put("$262", scope, instance);
             scope.setAttributes("$262", ScriptableObject.DONTENUM);
@@ -443,54 +446,51 @@ public class Test262SuiteTest {
             return instance;
         }
 
-        $262(ScriptableObject scope) {
-            this.scope = scope;
-        }
-
-        @JSFunction
-        public void gc() {
+        private static Object gc(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             System.gc();
+            return Undefined.instance;
         }
 
-        @JSFunction
-        public Object evalScript(String source) {
-            try (Context cx = Context.enter()) {
-                return cx.evaluateString(this.scope, source, "<evalScript>", 1, null);
+        public static Object evalScript(
+                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            if (args.length == 0) {
+                throw ScriptRuntime.throwError(cx, scope, "not enough args");
             }
+            String source = Context.toString(args[0]);
+            return cx.evaluateString(scope, source, "<evalScript>", 1, null);
         }
 
-        @JSGetter
-        public Object getGlobal() {
-            return this.scope;
+        public static Object getGlobal(Scriptable scriptable) {
+            return scriptable.getParentScope();
         }
 
-        @JSFunction
-        public $262 createRealm() {
-            try (Context cx = Context.enter()) {
-                ScriptableObject realm = cx.initSafeStandardObjects();
-
-                return $262.install(realm);
-            }
+        public static $262 createRealm(
+                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            ScriptableObject realm = (ScriptableObject) cx.initSafeStandardObjects(new TopLevel());
+            return install(realm, thisObj.getPrototype());
         }
 
-        @JSFunction
-        public void detachArrayBuffer() {
+        public static Object detachArrayBuffer(
+                Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             throw new UnsupportedOperationException(
                     "$262.detachArrayBuffer() method not yet implemented");
         }
 
-        @JSGetter
-        public Object getAgent() {
+        public static Object getAgent(Scriptable scriptable) {
             throw new UnsupportedOperationException("$262.agent property not yet implemented");
+        }
+
+        @Override
+        public String getClassName() {
+            return "__262__";
         }
     }
 
-    private Scriptable buildScope(Context cx, Test262Case testCase, int optLevel)
-            throws IOException {
-        ScriptableObject scope = cx.initSafeStandardObjects();
+    private Scriptable buildScope(Context cx, Test262Case testCase, boolean interpretedMode) {
+        ScriptableObject scope = (ScriptableObject) cx.initSafeStandardObjects(new TopLevel());
 
         for (String harnessFile : testCase.harnessFiles) {
-            String harnessKey = harnessFile + '-' + optLevel;
+            String harnessKey = harnessFile + '-' + interpretedMode;
             Script harnessScript =
                     HARNESS_SCRIPT_CACHE.computeIfAbsent(
                             harnessKey,
@@ -508,8 +508,8 @@ public class Test262SuiteTest {
             harnessScript.exec(cx, scope);
         }
 
-        $262.install(scope);
-
+        $262 proto = $262.init(cx, scope);
+        $262.install(scope, proto);
         return scope;
     }
 
@@ -531,24 +531,19 @@ public class Test262SuiteTest {
     @MethodSource("test262SuiteValues")
     public void test262Case(
             String testFilePath,
-            int optLevel,
+            TestMode testMode,
             boolean useStrict,
             Test262Case testCase,
             boolean markedAsFailing) {
         try (Context cx = Context.enter()) {
-            cx.setOptimizationLevel(optLevel);
+            cx.setInterpretedMode(testMode == TestMode.INTERPRETED);
+            // Ensure maximum compatibility, including future strict mode and "const" checks
+            cx.setLanguageVersion(Context.VERSION_ECMASCRIPT);
             cx.setGeneratingDebug(true);
 
             boolean failedEarly = false;
             try {
-                Scriptable scope;
-                try {
-                    scope = buildScope(cx, testCase, optLevel);
-                } catch (Exception ex) {
-                    throw new RuntimeException(
-                            "Failed to build a scope with the harness files.", ex);
-                }
-
+                Scriptable scope = buildScope(cx, testCase, testMode == TestMode.INTERPRETED);
                 String str = testCase.source;
                 int line = 1;
                 if (useStrict) {
@@ -573,7 +568,7 @@ public class Test262SuiteTest {
                 synchronized (RESULT_TRACKERS) {
                     TestResultTracker tracker = RESULT_TRACKERS.get(testCase);
                     if (tracker != null) {
-                        tracker.passes(optLevel, useStrict);
+                        tracker.passes(testMode, useStrict);
                     }
                 }
             } catch (RhinoException ex) {
@@ -605,10 +600,10 @@ public class Test262SuiteTest {
                 synchronized (RESULT_TRACKERS) {
                     TestResultTracker tracker = RESULT_TRACKERS.get(testCase);
                     if (tracker != null) {
-                        tracker.passes(optLevel, useStrict);
+                        tracker.passes(testMode, useStrict);
                     }
                 }
-            } catch (Exception ex) {
+            } catch (RuntimeException ex) {
                 // enable line below to print out stacktraces of unexpected exceptions
                 // disabled for now because too many exceptions are throw
                 // Unexpected non-Rhino-Exception here, so print the exception so it stands out
@@ -630,6 +625,7 @@ public class Test262SuiteTest {
     private static void addTestFiles(List<File> testFiles, Map<File, String> filesExpectedToFail)
             throws IOException {
         List<File> topLevelFolderContents = new LinkedList<File>();
+        Map<String, File> fileLookup = new HashMap<>();
         File topLevelFolder = null;
         boolean excludeTopLevelFolder = false;
 
@@ -678,6 +674,16 @@ public class Test262SuiteTest {
                     topLevelFolderContents.clear();
                     recursiveListFilesHelper(
                             topLevelFolder, JS_FILE_FILTER, topLevelFolderContents);
+                    fileLookup.clear();
+                    for (File file : topLevelFolderContents) {
+                        fileLookup.put(
+                                topLevelFolder
+                                        .toPath()
+                                        .relativize(file.toPath())
+                                        .toString()
+                                        .replaceAll("\\\\", "/"),
+                                file);
+                    }
 
                     if (updateTest262Properties) {
                         // Make sure files are always sorted the same way, alphabetically, with
@@ -725,32 +731,20 @@ public class Test262SuiteTest {
                                     + " without encountering a top level");
                 }
 
-                boolean fileFound = false;
-
                 // Now onto the files and folders listed under the topLevel folder
                 if (path.endsWith(".js")) {
-                    for (File file : topLevelFolderContents) {
-                        if (topLevelFolder
-                                .toPath()
-                                .relativize(file.toPath())
-                                .toString()
-                                .replaceAll("\\\\", "/")
-                                .equals(path)) {
-                            filesExpectedToFail.put(file, comment);
-
-                            if (excludeTopLevelFolder) {
-                                /* adding paths listed in the .properties file under the topLevel folder marked to skip
-                                 * to testFiles, in order to be able to not loose then when regenerate the .properties file
-                                 *
-                                 * Want to keep track of these files as they apparently failed at the time when the directory was marked to be skipped
-                                 */
-                                testFiles.add(file);
-                            }
-                            fileFound = true;
+                    File file = fileLookup.get(path);
+                    if (file != null) {
+                        filesExpectedToFail.put(file, comment);
+                        if (excludeTopLevelFolder) {
+                            /* adding paths listed in the .properties file under the topLevel folder marked to skip
+                             * to testFiles, in order to be able to not loose then when regenerate the .properties file
+                             *
+                             * Want to keep track of these files as they apparently failed at the time when the directory was marked to be skipped
+                             */
+                            testFiles.add(file);
                         }
-                    }
-
-                    if (!fileFound) {
+                    } else {
                         System.err.format(
                                 "WARN: Exclusion '%s' at line #%d doesn't exclude anything%n",
                                 path, lineNo);
@@ -801,7 +795,7 @@ public class Test262SuiteTest {
                             RESULT_TRACKERS.computeIfAbsent(
                                     new Test262Case(testFile, null, null, null, false, null, null),
                                     k -> new TestResultTracker(comment));
-                    tracker.setExpectations(-2, true, false, false, true);
+                    tracker.setExpectations(TestMode.SKIPPED, true, false, false, true);
                     continue;
                 }
             }
@@ -824,7 +818,7 @@ public class Test262SuiteTest {
                                 RESULT_TRACKERS.computeIfAbsent(
                                         testCase, k -> new TestResultTracker(comment));
                         tracker.setExpectations(
-                                -2,
+                                TestMode.SKIPPED,
                                 true,
                                 testCase.hasFlag(FLAG_ONLY_STRICT),
                                 testCase.hasFlag(FLAG_NO_STRICT),
@@ -841,7 +835,7 @@ public class Test262SuiteTest {
                             RESULT_TRACKERS.computeIfAbsent(
                                     testCase, k -> new TestResultTracker(comment));
                     tracker.setExpectations(
-                            -2,
+                            TestMode.SKIPPED,
                             true,
                             testCase.hasFlag(FLAG_ONLY_STRICT),
                             testCase.hasFlag(FLAG_NO_STRICT),
@@ -851,17 +845,17 @@ public class Test262SuiteTest {
                 continue;
             }
 
-            for (int optLevel : OPT_LEVELS) {
+            for (TestMode testMode : new TestMode[] {TestMode.INTERPRETED, TestMode.COMPILED}) {
                 if (!testCase.hasFlag(FLAG_ONLY_STRICT) || testCase.hasFlag(FLAG_RAW)) {
                     result.add(
                             new Object[] {
-                                caseShortPath, optLevel, false, testCase, markedAsFailing
+                                caseShortPath, testMode, false, testCase, markedAsFailing
                             });
                     TestResultTracker tracker =
                             RESULT_TRACKERS.computeIfAbsent(
                                     testCase, k -> new TestResultTracker(comment));
                     tracker.setExpectations(
-                            optLevel,
+                            testMode,
                             false,
                             testCase.hasFlag(FLAG_ONLY_STRICT),
                             testCase.hasFlag(FLAG_NO_STRICT),
@@ -871,13 +865,13 @@ public class Test262SuiteTest {
                 if (!testCase.hasFlag(FLAG_NO_STRICT) && !testCase.hasFlag(FLAG_RAW)) {
                     result.add(
                             new Object[] {
-                                caseShortPath, optLevel, true, testCase, markedAsFailing
+                                caseShortPath, testMode, true, testCase, markedAsFailing
                             });
                     TestResultTracker tracker =
                             RESULT_TRACKERS.computeIfAbsent(
                                     testCase, k -> new TestResultTracker(comment));
                     tracker.setExpectations(
-                            optLevel,
+                            testMode,
                             true,
                             testCase.hasFlag(FLAG_ONLY_STRICT),
                             testCase.hasFlag(FLAG_NO_STRICT),
@@ -985,9 +979,14 @@ public class Test262SuiteTest {
         }
     }
 
+    private enum TestMode {
+        INTERPRETED,
+        COMPILED,
+        SKIPPED,
+    }
+
     private static class TestResultTracker {
-        private Set<Integer> strictOptLevel = new HashSet<>();
-        private Set<Integer> nonStrictOptLevel = new HashSet<>();
+        private final Set<String> modes = new HashSet<>();
         private boolean onlyStrict;
         private boolean noStrict;
         private boolean expectedFailure;
@@ -997,43 +996,40 @@ public class Test262SuiteTest {
             this.comment = comment;
         }
 
+        private static String makeKey(TestMode mode, boolean useStrict) {
+            return mode.name().toLowerCase() + '-' + (useStrict ? "strict" : "non-strict");
+        }
+
         public void setExpectations(
-                int optLevel,
+                TestMode mode,
                 boolean useStrict,
                 boolean onlyStrict,
                 boolean noStrict,
                 boolean expectedFailure) {
-            if (useStrict) {
-                strictOptLevel.add(optLevel);
-            } else {
-                nonStrictOptLevel.add(optLevel);
-            }
+
+            modes.add(makeKey(mode, useStrict));
             this.onlyStrict = onlyStrict;
             this.noStrict = noStrict;
             this.expectedFailure = expectedFailure;
         }
 
         public boolean expectationsMet() {
-            return strictOptLevel.size() + nonStrictOptLevel.size() == 0;
+            return modes.isEmpty();
         }
 
-        public void passes(int optLevel, boolean useStrict) {
-            if (useStrict) {
-                strictOptLevel.remove(optLevel);
-            } else {
-                nonStrictOptLevel.remove(optLevel);
-            }
+        public void passes(TestMode mode, boolean useStrict) {
+            modes.remove(makeKey(mode, useStrict));
         }
 
-        public String getResult(int[] optLevels, Test262Case tc) {
+        public String getResult(Test262Case tc) {
             // success on all optLevels in both strict and non-strict mode
-            if (strictOptLevel.size() + nonStrictOptLevel.size() == 0) {
+            if (modes.isEmpty()) {
                 return null;
             }
 
             // Test skipped due to dependencies on unsupported features/environment
-            if (strictOptLevel.contains(-2)) {
-                List<String> feats = new ArrayList<String>();
+            if (modes.contains("skipped-strict")) {
+                List<String> feats = new ArrayList<>();
 
                 for (String feature : tc.features) {
                     if (UNSUPPORTED_FEATURES.contains(feature)) {
@@ -1053,43 +1049,37 @@ public class Test262SuiteTest {
             }
 
             // failure on all optLevels in both strict and non-strict mode
-            if (strictOptLevel.size() == optLevels.length
-                    && nonStrictOptLevel.size() == optLevels.length) {
+            if (modes.size() == 4) {
                 return "";
             }
 
-            // all optLevels fail only in strict
-            if (strictOptLevel.size() == optLevels.length && nonStrictOptLevel.size() == 0) {
-                return "strict";
+            // simplify the output for some cases
+            ArrayList<String> res = new ArrayList<>(modes);
+            if (res.contains("compiled-non-strict") && res.contains("interpreted-non-strict")) {
+                res.remove("compiled-non-strict");
+                res.remove("interpreted-non-strict");
+                res.add("non-strict");
+            }
+            if (res.contains("compiled-strict") && res.contains("interpreted-strict")) {
+                res.remove("compiled-strict");
+                res.remove("interpreted-strict");
+                res.add("strict");
+            }
+            if (res.contains("compiled-strict") && res.contains("compiled-non-strict")) {
+                res.remove("compiled-strict");
+                res.remove("compiled-non-strict");
+                res.add("compiled");
+            }
+            if (res.contains("interpreted-strict") && res.contains("interpreted-non-strict")) {
+                res.remove("interpreted-strict");
+                res.remove("interpreted-non-strict");
+                res.add("interpreted");
             }
 
-            // all optLevels fail only in non-strict
-            if (nonStrictOptLevel.size() == optLevels.length && strictOptLevel.size() == 0) {
-                return "non-strict";
+            if (res.size() > 1) {
+                return '{' + String.join(",", res) + '}';
             }
-
-            // success in interpreted optLevel, but failure in all other optLevels
-            if ((noStrict
-                            || (strictOptLevel.size() == optLevels.length - 1
-                                    && !strictOptLevel.contains(-1)))
-                    && (onlyStrict
-                            || (nonStrictOptLevel.size() == optLevels.length - 1
-                                    && !nonStrictOptLevel.contains(-1)))) {
-                return "non-interpreted";
-            }
-
-            // mix of mode and optLevel successes and failures
-            String result = "{";
-            if (!noStrict && strictOptLevel.size() > 0) {
-                result += "strict: " + Arrays.toString(strictOptLevel.toArray());
-            }
-
-            if (!onlyStrict && nonStrictOptLevel.size() > 0) {
-                result += !noStrict && strictOptLevel.size() > 0 ? ", " : "";
-                result += "non-strict: " + Arrays.toString(nonStrictOptLevel.toArray());
-            }
-
-            return result + "}";
+            return String.join(",", res);
         }
     }
 }

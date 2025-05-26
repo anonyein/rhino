@@ -379,7 +379,7 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 Id_instanceof = Token.INSTANCEOF,
                 Id_new = Token.NEW,
                 Id_return = Token.RETURN,
-                Id_super = Token.RESERVED,
+                Id_super = Token.SUPER,
                 Id_switch = Token.SWITCH,
                 Id_this = Token.THIS,
                 Id_throw = Token.THROW,
@@ -577,6 +577,7 @@ class TokenStream implements Parser.CurrentPositionReporter {
         return id & 0xff;
     }
 
+    @SuppressWarnings("AndroidJdkLibsChecker")
     private static boolean isValidIdentifierName(String str) {
         int i = 0;
         for (int c : str.codePoints().toArray()) {
@@ -603,6 +604,10 @@ class TokenStream implements Parser.CurrentPositionReporter {
     @Override
     public int getLineno() {
         return lineno;
+    }
+
+    public int getTokenStartLineno() {
+        return tokenStartLineno;
     }
 
     final String getString() {
@@ -649,11 +654,15 @@ class TokenStream implements Parser.CurrentPositionReporter {
             for (; ; ) {
                 c = getChar();
                 if (c == EOF_CHAR) {
+                    tokenStartLastLineEnd = lastLineEnd;
+                    tokenStartLineno = lineno;
                     tokenBeg = cursor - 1;
                     tokenEnd = cursor;
                     return Token.EOF;
                 } else if (c == '\n') {
                     dirtyLine = false;
+                    tokenStartLastLineEnd = lastLineEnd;
+                    tokenStartLineno = lineno;
                     tokenBeg = cursor - 1;
                     tokenEnd = cursor;
                     return Token.EOL;
@@ -666,6 +675,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
             }
 
             // Assume the token will be 1 char - fixed up below.
+            tokenStartLastLineEnd = lastLineEnd;
+            tokenStartLineno = lineno;
             tokenBeg = cursor - 1;
             tokenEnd = cursor;
 
@@ -1013,8 +1024,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                                 c = '\t';
                                 break;
 
-                                // \v a late addition to the ECMA spec,
-                                // it is not in Java, so use 0xb
+                            // \v a late addition to the ECMA spec,
+                            // it is not in Java, so use 0xb
                             case 'v':
                                 c = 0xb;
                                 break;
@@ -1116,6 +1127,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
 
                 String str = getStringFromBuffer();
                 this.string = internString(str);
+                cursor = sourceCursor;
+                tokenEnd = cursor;
                 return Token.STRING;
             }
 
@@ -1146,8 +1159,20 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 case ',':
                     return Token.COMMA;
                 case '?':
-                    if (matchChar('?')) {
-                        return Token.NULLISH_COALESCING;
+                    if (parser.compilerEnv.getLanguageVersion() >= Context.VERSION_ES6) {
+                        if (peekChar() == '.') {
+                            // ?.digit is to be treated as ? .num
+                            getChar();
+                            if (!isDigit(peekChar())) {
+                                return Token.QUESTION_DOT;
+                            }
+                            ungetChar('.');
+                        } else if (matchChar('?')) {
+                            if (matchChar('=')) {
+                                return Token.ASSIGN_NULLISH;
+                            }
+                            return Token.NULLISH_COALESCING;
+                        }
                     }
                     return Token.HOOK;
                 case ':':
@@ -1220,6 +1245,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                     if (matchChar('!')) {
                         if (matchChar('-')) {
                             if (matchChar('-')) {
+                                tokenStartLastLineEnd = lastLineEnd;
+                                tokenStartLineno = lineno;
                                 tokenBeg = cursor - 4;
                                 skipLine();
                                 commentType = Token.CommentType.HTML;
@@ -1276,6 +1303,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                     markCommentStart();
                     // is it a // comment?
                     if (matchChar('/')) {
+                        tokenStartLastLineEnd = lastLineEnd;
+                        tokenStartLineno = lineno;
                         tokenBeg = cursor - 2;
                         skipLine();
                         commentType = Token.CommentType.LINE;
@@ -1284,6 +1313,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                     // is it a /* or /** comment?
                     if (matchChar('*')) {
                         boolean lookForSlash = false;
+                        tokenStartLastLineEnd = lastLineEnd;
+                        tokenStartLineno = lineno;
                         tokenBeg = cursor - 2;
                         if (matchChar('*')) {
                             lookForSlash = true;
@@ -1301,6 +1332,7 @@ class TokenStream implements Parser.CurrentPositionReporter {
                                 lookForSlash = true;
                             } else if (c == '/') {
                                 if (lookForSlash) {
+                                    cursor = sourceCursor;
                                     tokenEnd = cursor;
                                     return Token.COMMENT;
                                 }
@@ -1624,6 +1656,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 case '`':
                     rawString.setLength(rawString.length() - 1); // don't include "`"
                     this.string = hasInvalidEscapeSequences ? null : getStringFromBuffer();
+                    cursor = sourceCursor;
+                    tokenEnd = cursor;
                     return Token.TEMPLATE_LITERAL;
                 case '$':
                     if (matchTemplateLiteralChar('{')) {
@@ -1829,6 +1863,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
     }
 
     int getNextXMLToken() throws IOException {
+        tokenStartLastLineEnd = lastLineEnd;
+        tokenStartLineno = lineno;
         tokenBeg = cursor;
         stringBufferTop = 0; // remember the XML
 
@@ -1876,6 +1912,8 @@ class TokenStream implements Parser.CurrentPositionReporter {
 
                 if (!xmlIsTagContent && xmlOpenTagsCount == 0) {
                     this.string = getStringFromBuffer();
+                    cursor = sourceCursor;
+                    tokenEnd = cursor;
                     return Token.XMLEND;
                 }
             } else {
@@ -2167,6 +2205,7 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 }
                 lineEndChar = -1;
                 lineStart = sourceCursor - 1;
+                lastLineEnd = tokenEnd;
                 lineno++;
             }
 
@@ -2240,7 +2279,7 @@ class TokenStream implements Parser.CurrentPositionReporter {
                 // ignore it, we're already displaying an error...
                 return EOF_CHAR;
             }
-            // index recalculuation as fillSourceBuffer can move saved
+            // index recalculation as fillSourceBuffer can move saved
             // line buffer and change sourceCursor
             index -= (oldSourceCursor - sourceCursor);
         }
@@ -2419,6 +2458,10 @@ class TokenStream implements Parser.CurrentPositionReporter {
         return tokenEnd - tokenBeg;
     }
 
+    public int getTokenColumn() {
+        return tokenBeg - tokenStartLastLineEnd + 1;
+    }
+
     // stuff other than whitespace since start of line
     private boolean dirtyLine;
 
@@ -2470,6 +2513,10 @@ class TokenStream implements Parser.CurrentPositionReporter {
     // Record start and end positions of last scanned token.
     int tokenBeg;
     int tokenEnd;
+
+    private int lastLineEnd;
+    private int tokenStartLastLineEnd;
+    private int tokenStartLineno;
 
     // Type of last comment scanned.
     Token.CommentType commentType;

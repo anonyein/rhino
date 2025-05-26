@@ -11,6 +11,7 @@ import java.util.Locale;
 import org.junit.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * @author Marc Guillemot
@@ -25,27 +26,17 @@ public class NativeStringTest {
      */
     @Test
     public void toLowerCaseApply() {
-        assertEvaluates("hello", "var x = String.toLowerCase; x.apply('HELLO')");
-        assertEvaluates(
+        Utils.assertWithAllModes("hello", "var x = String.toLowerCase; x.apply('HELLO')");
+        Utils.assertWithAllModes(
                 "hello",
                 "String.toLowerCase('HELLO')"); // first patch proposed to #492359 was breaking this
-    }
-
-    private static void assertEvaluates(final Object expected, final String source) {
-        Utils.runWithAllOptimizationLevels(
-                cx -> {
-                    final Scriptable scope = cx.initStandardObjects();
-                    final Object rep = cx.evaluateString(scope, source, "test.js", 0, null);
-                    assertEquals(expected, rep);
-                    return null;
-                });
     }
 
     @Test
     public void toLocaleLowerCase() {
         String js = "'\\u0130'.toLocaleLowerCase()";
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
@@ -56,7 +47,7 @@ public class NativeStringTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
@@ -72,7 +63,7 @@ public class NativeStringTest {
     public void toLocaleLowerCaseIgnoreParams() {
         String js = "'\\u0130'.toLocaleLowerCase('en')";
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);
@@ -83,7 +74,7 @@ public class NativeStringTest {
                     return null;
                 });
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope = cx.initStandardObjects();
                     cx.setLanguageVersion(Context.VERSION_ES6);

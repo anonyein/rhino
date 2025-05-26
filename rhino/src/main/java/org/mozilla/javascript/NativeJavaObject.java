@@ -24,8 +24,6 @@ import java.util.Objects;
  * directly, and uses NativeJavaMethod objects to reflect (possibly overloaded) methods. It also
  * provides iterator support for all iterable objects.
  *
- * <p>
- *
  * @author Mike Shaver
  * @see NativeJavaArray
  * @see NativeJavaPackage
@@ -534,7 +532,8 @@ public class NativeJavaObject implements Scriptable, SymbolScriptable, Wrapper, 
                     return coerceToNumber(
                             jsTypeCode == JSTYPE_BIGINT ? BigInteger.class : Double.TYPE, value);
                 } else if ((type.isPrimitive() && type != Boolean.TYPE)
-                        || ScriptRuntime.NumberClass.isAssignableFrom(type)) {
+                        || ScriptRuntime.NumberClass.isAssignableFrom(type)
+                        || ScriptRuntime.CharacterClass.isAssignableFrom(type)) {
                     return coerceToNumber(type, value);
                 } else {
                     reportConversionError(value, type);
@@ -739,7 +738,7 @@ public class NativeJavaObject implements Scriptable, SymbolScriptable, Wrapper, 
             /* Long values cannot be expressed exactly in doubles.
              * We thus use the largest and smallest double value that
              * has a value expressible as a long value. We build these
-             * numerical values from their hexidecimal representations
+             * numerical values from their hexadecimal representations
              * to avoid any problems caused by attempting to parse a
              * decimal representation.
              */

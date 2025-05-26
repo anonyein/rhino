@@ -7,6 +7,7 @@ package org.mozilla.javascript.tests;
 import org.junit.Test;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.testutils.Utils;
 
 /**
  * Unit tests for <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=374918">Bug 374918 - String
@@ -59,7 +60,7 @@ public class PrimitiveTypeScopeResolutionTest {
     }
 
     private void testWithTwoScopes(final String scriptScope1, final String scriptScope2) {
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope1 =
                             cx.initStandardObjects(new MySimpleScriptableObject("scope1"));
@@ -126,7 +127,7 @@ public class PrimitiveTypeScopeResolutionTest {
 
         final String scriptScope1 = "String.prototype.foo = 'from 1'; scope2.f()";
 
-        Utils.runWithAllOptimizationLevels(
+        Utils.runWithAllModes(
                 cx -> {
                     final Scriptable scope1 =
                             cx.initStandardObjects(new MySimpleScriptableObject("scope1"));

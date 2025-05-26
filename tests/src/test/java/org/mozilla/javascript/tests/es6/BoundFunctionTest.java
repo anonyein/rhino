@@ -8,7 +8,7 @@
 package org.mozilla.javascript.tests.es6;
 
 import org.junit.Test;
-import org.mozilla.javascript.tests.Utils;
+import org.mozilla.javascript.testutils.Utils;
 
 public class BoundFunctionTest {
 
@@ -16,6 +16,6 @@ public class BoundFunctionTest {
     public void ctorCallableThis() {
         String code = "function foo() {};\n" + " foo.bind({}).name;";
 
-        Utils.assertWithAllOptimizationLevelsES6("bound foo", code);
+        Utils.assertWithAllModes_ES6("bound foo", code);
     }
 }

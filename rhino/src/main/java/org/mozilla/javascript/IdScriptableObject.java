@@ -39,15 +39,15 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         private Object[] valueArray;
         private short[] attributeArray;
 
-        // The following helps to avoid creation of valueArray during runtime
-        // initialization for common case of "constructor" property
+        // The following helps to avoid the creation of valueArray during runtime
+        // initialization for the common case of "constructor" property
         int constructorId;
         private IdFunctionObject constructor;
         private short constructorAttrs;
 
         PrototypeValues(IdScriptableObject obj, int maxId) {
-            if (obj == null) throw new IllegalArgumentException();
-            if (maxId < 1) throw new IllegalArgumentException();
+            if (obj == null) throw new IllegalArgumentException("obj == null");
+            if (maxId < 1) throw new IllegalArgumentException("maxId < 1");
             this.obj = obj;
             this.maxId = maxId;
         }
@@ -57,16 +57,17 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         }
 
         final void initValue(int id, String name, Object value, int attributes) {
-            if (!(1 <= id && id <= maxId)) throw new IllegalArgumentException();
-            if (name == null) throw new IllegalArgumentException();
-            if (value == NOT_FOUND) throw new IllegalArgumentException();
+            if (!(1 <= id && id <= maxId))
+                throw new IllegalArgumentException("!(1 <= id && id <= maxId)");
+            if (name == null) throw new IllegalArgumentException("name == null");
+            if (value == NOT_FOUND) throw new IllegalArgumentException("value == NOT_FOUND");
             ScriptableObject.checkValidAttributes(attributes);
             if (obj.findPrototypeId(name) != id) throw new IllegalArgumentException(name);
 
             if (id == constructorId) {
                 if (!(value instanceof IdFunctionObject)) {
                     throw new IllegalArgumentException(
-                            "consructor should be initialized with IdFunctionObject");
+                            "constructor should be initialized with IdFunctionObject");
                 }
                 constructor = (IdFunctionObject) value;
                 constructorAttrs = (short) attributes;
@@ -77,16 +78,17 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         }
 
         final void initValue(int id, Symbol key, Object value, int attributes) {
-            if (!(1 <= id && id <= maxId)) throw new IllegalArgumentException();
-            if (key == null) throw new IllegalArgumentException();
-            if (value == NOT_FOUND) throw new IllegalArgumentException();
+            if (!(1 <= id && id <= maxId))
+                throw new IllegalArgumentException("!(1 <= id && id <= maxId)");
+            if (key == null) throw new IllegalArgumentException("key == null");
+            if (value == NOT_FOUND) throw new IllegalArgumentException("value == NOT_FOUND");
             ScriptableObject.checkValidAttributes(attributes);
             if (obj.findPrototypeId(key) != id) throw new IllegalArgumentException(key.toString());
 
             if (id == constructorId) {
                 if (!(value instanceof IdFunctionObject)) {
                     throw new IllegalArgumentException(
-                            "consructor should be initialized with IdFunctionObject");
+                            "constructor should be initialized with IdFunctionObject");
                 }
                 constructor = (IdFunctionObject) value;
                 constructorAttrs = (short) attributes;
@@ -167,7 +169,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         }
 
         final void set(int id, Scriptable start, Object value) {
-            if (value == NOT_FOUND) throw new IllegalArgumentException();
+            if (value == NOT_FOUND) throw new IllegalArgumentException("value == NOT_FOUND");
             ensureId(id);
             int attr = attributeArray[id - 1];
             if ((attr & READONLY) == 0) {
@@ -201,7 +203,13 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                 Context cx = Context.getContext();
                 if (cx.isStrictMode()) {
                     int nameSlot = (id - 1) * SLOT_SPAN + NAME_SLOT;
-                    String name = (String) valueArray[nameSlot];
+
+                    String name = null;
+                    if (valueArray[nameSlot] instanceof String)
+                        name = (String) valueArray[nameSlot];
+                    else if (valueArray[nameSlot] instanceof Symbol) {
+                        name = valueArray[nameSlot].toString();
+                    }
                     throw ScriptRuntime.typeErrorById(
                             "msg.delete.property.with.configurable.false", name);
                 }
@@ -674,7 +682,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
     }
 
     /**
-     * Set or delete id value. If value == NOT_FOUND , the implementation should make sure that the
+     * Set or delete id value. If value == NOT_FOUND, the implementation should make sure that the
      * following getInstanceIdValue return NOT_FOUND.
      */
     protected void setInstanceIdValue(int id, Object value) {
@@ -764,6 +772,14 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         return function;
     }
 
+    public final IdFunctionObject initPrototypeMethod(
+            Object tag, int id, Symbol key, String functionName, int arity, int attributes) {
+        Scriptable scope = ScriptableObject.getTopLevelScope(this);
+        IdFunctionObject function = newIdFunction(tag, id, functionName, arity, scope);
+        prototypeValues.initValue(id, key, function, attributes);
+        return function;
+    }
+
     public final void initPrototypeConstructor(IdFunctionObject f) {
         int id = prototypeValues.constructorId;
         if (id == 0) throw new IllegalStateException();
@@ -820,30 +836,13 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
      * @return obj casted to the target type
      * @throws EcmaError if the cast failed.
      */
-    @SuppressWarnings("unchecked")
     protected static <T> T ensureType(Object obj, Class<T> clazz, IdFunctionObject f) {
-        if (clazz.isInstance(obj)) {
-            return (T) obj;
-        }
-        if (obj == null) {
-            throw ScriptRuntime.typeErrorById(
-                    "msg.incompat.call.details", f.getFunctionName(), "null", clazz.getName());
-        }
-        throw ScriptRuntime.typeErrorById(
-                "msg.incompat.call.details",
-                f.getFunctionName(),
-                obj.getClass().getName(),
-                clazz.getName());
+        return ensureType(obj, clazz, f.getFunctionName());
     }
 
     private IdFunctionObject newIdFunction(
             Object tag, int id, String name, int arity, Scriptable scope) {
-        IdFunctionObject function = null;
-        if (Context.getContext().getLanguageVersion() < Context.VERSION_ES6) {
-            function = new IdFunctionObject(this, tag, id, name, arity, scope);
-        } else {
-            function = new IdFunctionObjectES6(this, tag, id, name, arity, scope);
-        }
+        IdFunctionObject function = new IdFunctionObject(this, tag, id, name, arity, scope);
 
         if (isSealed()) {
             function.sealObject();
@@ -852,7 +851,7 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
     }
 
     @Override
-    protected void defineOwnProperty(
+    protected boolean defineOwnProperty(
             Context cx, Object key, ScriptableObject desc, boolean checkValid) {
         if (key instanceof CharSequence) {
             String name = key.toString();
@@ -863,8 +862,8 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                     delete(id); // it will be replaced with a slot
                 } else {
                     checkPropertyDefinition(desc);
-                    ScriptableObject current = getOwnPropertyDescriptor(cx, key);
-                    checkPropertyChange(name, current, desc);
+                    var slot = queryOrFakeSlot(cx, key);
+                    checkPropertyChangeForSlot(name, slot, desc);
                     int attr = (info >>> 16);
                     Object value = getProperty(desc, "value");
                     if (value != NOT_FOUND && ((attr & READONLY) == 0 || (attr & PERMANENT) == 0)) {
@@ -873,9 +872,14 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                             setInstanceIdValue(id, value);
                         }
                     }
-                    attr = applyDescriptorToAttributeBitset(attr, desc);
+                    attr =
+                            applyDescriptorToAttributeBitset(
+                                    attr,
+                                    getProperty(desc, "enumerable"),
+                                    getProperty(desc, "writable"),
+                                    getProperty(desc, "configurable"));
                     setAttributes(name, attr);
-                    return;
+                    return true;
                 }
             }
             if (prototypeValues != null) {
@@ -885,8 +889,8 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                         prototypeValues.delete(id); // it will be replaced with a slot
                     } else {
                         checkPropertyDefinition(desc);
-                        ScriptableObject current = getOwnPropertyDescriptor(cx, key);
-                        checkPropertyChange(name, current, desc);
+                        var slot = queryOrFakeSlot(cx, key);
+                        checkPropertyChangeForSlot(name, slot, desc);
                         int attr = prototypeValues.getAttributes(id);
                         Object value = getProperty(desc, "value");
                         if (value != NOT_FOUND && (attr & READONLY) == 0) {
@@ -896,7 +900,12 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                             }
                         }
                         prototypeValues.setAttributes(
-                                id, applyDescriptorToAttributeBitset(attr, desc));
+                                id,
+                                applyDescriptorToAttributeBitset(
+                                        attr,
+                                        getProperty(desc, "enumerable"),
+                                        getProperty(desc, "writable"),
+                                        getProperty(desc, "configurable")));
 
                         // Handle the regular slot that was created if this property was previously
                         // replaced
@@ -905,12 +914,12 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
                             super.delete(name);
                         }
 
-                        return;
+                        return true;
                     }
                 }
             }
         }
-        super.defineOwnProperty(cx, key, desc, checkValid);
+        return super.defineOwnProperty(cx, key, desc, checkValid);
     }
 
     @Override
@@ -918,62 +927,90 @@ public abstract class IdScriptableObject extends ScriptableObject implements IdF
         ScriptableObject desc = super.getOwnPropertyDescriptor(cx, id);
         if (desc == null) {
             if (id instanceof String) {
-                return getBuiltInDescriptor((String) id);
+                return getBuiltInDataDescriptor((String) id);
             }
 
             if (ScriptRuntime.isSymbol(id)) {
                 if (id instanceof SymbolKey) {
-                    return getBuiltInDescriptor((SymbolKey) id);
+                    return getBuiltInDataDescriptor((SymbolKey) id);
                 }
 
-                return getBuiltInDescriptor(((NativeSymbol) id).getKey());
+                return getBuiltInDataDescriptor(((NativeSymbol) id).getKey());
             }
         }
         return desc;
     }
 
-    private ScriptableObject getBuiltInDescriptor(String name) {
-        Object value = null;
-        int attr = EMPTY;
+    private Slot queryOrFakeSlot(Context cx, Object id) {
+        var slot = querySlot(cx, id);
+        if (slot == null) {
+            if (id instanceof String) {
+                return getBuiltInSlot((String) id);
+            }
 
+            if (ScriptRuntime.isSymbol(id)) {
+                if (id instanceof SymbolKey) {
+                    return getBuiltInSlot((SymbolKey) id);
+                }
+
+                return getBuiltInSlot(((NativeSymbol) id).getKey());
+            }
+        }
+        return slot;
+    }
+
+    private ScriptableObject getBuiltInDataDescriptor(String name) {
         Scriptable scope = getParentScope();
         if (scope == null) {
             scope = this;
         }
 
+        var slot = getBuiltInSlot(name);
+        return slot == null ? null : buildDataDescriptor(scope, slot.value, slot.getAttributes());
+    }
+
+    private Slot getBuiltInSlot(String name) {
         int info = findInstanceIdInfo(name);
         if (info != 0) {
             int id = (info & 0xFFFF);
-            value = getInstanceIdValue(id);
-            attr = (info >>> 16);
-            return buildDataDescriptor(scope, value, attr);
+            Object value = getInstanceIdValue(id);
+            int attr = (info >>> 16);
+            var slot = new Slot(name, 0, attr);
+            slot.value = value;
+            return slot;
         }
         if (prototypeValues != null) {
             int id = prototypeValues.findId(name);
             if (id != 0) {
-                value = prototypeValues.get(id);
-                attr = prototypeValues.getAttributes(id);
-                return buildDataDescriptor(scope, value, attr);
+                Object value = prototypeValues.get(id);
+                int attr = prototypeValues.getAttributes(id);
+                var slot = new Slot(name, 0, attr);
+                slot.value = value;
+                return slot;
             }
         }
         return null;
     }
 
-    private ScriptableObject getBuiltInDescriptor(Symbol key) {
-        Object value = null;
-        int attr = EMPTY;
-
+    private ScriptableObject getBuiltInDataDescriptor(Symbol key) {
         Scriptable scope = getParentScope();
         if (scope == null) {
             scope = this;
         }
 
+        var slot = getBuiltInSlot(key);
+        return slot == null ? null : buildDataDescriptor(scope, slot.value, slot.getAttributes());
+    }
+
+    private Slot getBuiltInSlot(Symbol key) {
         if (prototypeValues != null) {
             int id = prototypeValues.findId(key);
             if (id != 0) {
-                value = prototypeValues.get(id);
-                attr = prototypeValues.getAttributes(id);
-                return buildDataDescriptor(scope, value, attr);
+                Object value = prototypeValues.get(id);
+                int attr = prototypeValues.getAttributes(id);
+                var slot = new Slot(key, 0, attr);
+                slot.value = value;
+                return slot;
             }
         }
         return null;

@@ -30,7 +30,9 @@ import org.mozilla.javascript.ast.ScriptNode;
 import org.mozilla.javascript.optimizer.Codegen;
 import org.mozilla.javascript.optimizer.OptFunctionNode;
 
-/** @author André Bargull */
+/**
+ * @author André Bargull
+ */
 public class Bug782363Test {
 
     private Context cx;
@@ -39,7 +41,6 @@ public class Bug782363Test {
     public void setUp() {
         cx = Context.enter();
         cx.setLanguageVersion(Context.VERSION_1_8);
-        cx.setOptimizationLevel(9);
     }
 
     @After

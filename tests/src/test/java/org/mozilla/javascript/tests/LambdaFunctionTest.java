@@ -15,6 +15,7 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.testutils.Utils;
 
 public class LambdaFunctionTest {
 
@@ -37,8 +38,7 @@ public class LambdaFunctionTest {
     }
 
     private void eval(String source) {
-        Utils.runWithAllOptimizationLevels(
-                ignored -> cx.evaluateString(root, source, "test.js", 1, null));
+        Utils.runWithAllModes(ignored -> cx.evaluateString(root, source, "test.js", 1, null));
     }
 
     @Test
@@ -79,6 +79,22 @@ public class LambdaFunctionTest {
         TestClass.init(root);
         eval(
                 "let tc = new TestClass('foo');\n"
+                        + "assertEquals(tc.value, 'foo');\n"
+                        + "tc.value = 'bar';\n"
+                        + "assertEquals(tc.value, 'bar');\n"
+                        + "tc.anotherValue = 123;\n"
+                        + "assertEquals(tc.anotherValue, 123);\n"
+                        + "assertEquals(TestClass.name, 'TestClass');\n"
+                        + "assertEquals(TestClass.length, 1);\n"
+                        + "assertEquals(typeof TestClass, 'function');\n"
+                        + "assertTrue(tc instanceof TestClass);\n");
+    }
+
+    @Test
+    public void constructLambdaClassWithFunction() {
+        TestClass.init(root);
+        eval(
+                "let tc = TestClass('foo');\n"
                         + "assertEquals(tc.value, 'foo');\n"
                         + "tc.value = 'bar';\n"
                         + "assertEquals(tc.value, 'bar');\n"
