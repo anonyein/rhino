@@ -6036,7 +6036,7 @@ public class ScriptRuntime {
         private final Scriptable thisObj;
         private final String name;
 
-        LookupResult(Object result, Scriptable thisObj, String name) {
+        public LookupResult(Object result, Scriptable thisObj, String name) {
             this.result = result;
             this.thisObj = thisObj;
             this.name = name;
