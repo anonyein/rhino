@@ -377,17 +377,16 @@ public class ArrayLikeAbstractOperations {
 
     public static ElementComparator getSortComparatorFromArguments(
             Context cx, Scriptable scope, Object[] args) {
-        final Callable jsCompareFunction = ScriptRuntime.getValueFunctionAndThis(args[0], cx);
-        final Scriptable funThis = ScriptRuntime.lastStoredScriptable(cx);
+        var compareFunc = ScriptRuntime.getValueAndThis(args[0], cx);
+        Callable compare = compareFunc.getCallable();
+        Scriptable compareThis = compareFunc.getThis();
         final Object[] cmpBuf = new Object[2]; // Buffer for cmp arguments
         return new ElementComparator(
-                new Comparator<Object>() {
-                    @Override
-                    public int compare(final Object x, final Object y) {
-                        // This comparator is invoked only for non-undefined objects
-                        cmpBuf[0] = x;
-                        cmpBuf[1] = y;
-                        Object ret = jsCompareFunction.call(cx, scope, funThis, cmpBuf);
+                (x, y) -> {
+                    // This comparator is invoked only for non-undefined objects
+                    cmpBuf[0] = x;
+                    cmpBuf[1] = y;
+                    Object ret = compare.call(cx, scope, compareThis, cmpBuf);
 
                         // HtmlUnit
                         if (cx.hasFeature(Context.FEATURE_HTMLUNIT_ARRAY_SORT_COMPERATOR_ACCEPTS_BOOL)) {
@@ -397,15 +396,14 @@ public class ArrayLikeAbstractOperations {
                         }
                         // end HtmlUnit
 
-                        double d = ScriptRuntime.toNumber(ret);
-                        int cmp = Double.compare(d, 0);
-                        if (cmp < 0) {
-                            return -1;
-                        } else if (cmp > 0) {
-                            return +1;
-                        }
-                        return 0;
+                    double d = ScriptRuntime.toNumber(ret);
+                    int cmp = Double.compare(d, 0);
+                    if (cmp < 0) {
+                        return -1;
+                    } else if (cmp > 0) {
+                        return +1;
                     }
+                    return 0;
                 });
     }
 
