@@ -27,7 +27,7 @@ public class NativeArrayBuffer extends ScriptableObject {
 
     private static final byte[] EMPTY_BUF = new byte[0];
 
-    final byte[] buffer;
+    byte[] buffer;
 
     @Override
     public String getClassName() {
@@ -56,6 +56,8 @@ public class NativeArrayBuffer extends ScriptableObject {
                 DONTENUM | READONLY);
         constructor.definePrototypeProperty(
                 cx, "byteLength", NativeArrayBuffer::js_byteLength, DONTENUM | READONLY);
+        constructor.definePrototypeProperty(
+                cx, "detached", NativeArrayBuffer::js_detached, DONTENUM | READONLY);
         constructor.definePrototypeProperty(
                 SymbolKey.TO_STRING_TAG, "ArrayBuffer", DONTENUM | READONLY);
 
@@ -102,7 +104,7 @@ public class NativeArrayBuffer extends ScriptableObject {
 
     /** Get the number of bytes in the buffer. */
     public int getLength() {
-        return buffer.length;
+        return buffer != null ? buffer.length : 0;
     }
 
     /**
@@ -111,6 +113,14 @@ public class NativeArrayBuffer extends ScriptableObject {
      */
     public byte[] getBuffer() {
         return buffer;
+    }
+
+    public void detach() {
+        buffer = null;
+    }
+
+    public boolean isDetached() {
+        return buffer == null;
     }
 
     /**
@@ -128,9 +138,9 @@ public class NativeArrayBuffer extends ScriptableObject {
         // Clamp as per the spec to between 0 and length
         int end =
                 ScriptRuntime.toInt32(
-                        Math.max(0, Math.min(buffer.length, (e < 0 ? buffer.length + e : e))));
+                        Math.max(0, Math.min(getLength(), (e < 0 ? getLength() + e : e))));
         int start =
-                ScriptRuntime.toInt32(Math.min(end, Math.max(0, (s < 0 ? buffer.length + s : s))));
+                ScriptRuntime.toInt32(Math.min(end, Math.max(0, (s < 0 ? getLength() + s : s))));
         int len = end - start;
 
         NativeArrayBuffer newBuf = new NativeArrayBuffer(len);
@@ -159,6 +169,11 @@ public class NativeArrayBuffer extends ScriptableObject {
             LambdaConstructor defaultConstructor,
             Object[] args) {
         NativeArrayBuffer self = getSelf(thisObj);
+
+        if (self.isDetached()) {
+            throw ScriptRuntime.typeErrorById("msg.arraybuf.detached");
+        }
+
         double start = isArg(args, 0) ? ScriptRuntime.toNumber(args[0]) : 0;
         double end = isArg(args, 1) ? ScriptRuntime.toNumber(args[1]) : self.getLength();
         int endI =
@@ -197,6 +212,10 @@ public class NativeArrayBuffer extends ScriptableObject {
 
     private static Object js_byteLength(Scriptable thisObj) {
         return getSelf(thisObj).getLength();
+    }
+
+    private static Object js_detached(Scriptable thisObj) {
+        return getSelf(thisObj).isDetached();
     }
 
     private static boolean isArg(Object[] args, int i) {
