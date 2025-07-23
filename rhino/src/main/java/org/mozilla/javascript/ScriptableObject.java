@@ -37,6 +37,7 @@ import org.mozilla.javascript.annotations.JSGetter;
 import org.mozilla.javascript.annotations.JSSetter;
 import org.mozilla.javascript.annotations.JSStaticFunction;
 import org.mozilla.javascript.debug.DebuggableObject;
+import org.mozilla.javascript.lc.type.TypeInfoFactory;
 
 /**
  * This is the default implementation of the Scriptable interface. This class provides convenient
@@ -1500,7 +1501,7 @@ public abstract class ScriptableObject extends SlotMapOwner
             String propertyName, Object delegateTo, Method getter, Method setter, int attributes) {
         MemberBox getterBox = null;
         if (getter != null) {
-            getterBox = new MemberBox(getter);
+            getterBox = new MemberBox(getter, TypeInfoFactory.get(this));
 
             boolean delegatedForm;
             if (!Modifier.isStatic(getter.getModifiers())) {
@@ -1541,7 +1542,7 @@ public abstract class ScriptableObject extends SlotMapOwner
             if (setter.getReturnType() != Void.TYPE)
                 throw Context.reportRuntimeErrorById("msg.setter.return", setter.toString());
 
-            setterBox = new MemberBox(setter);
+            setterBox = new MemberBox(setter, TypeInfoFactory.get(this));
 
             boolean delegatedForm;
             if (!Modifier.isStatic(setter.getModifiers())) {
@@ -1676,14 +1677,26 @@ public abstract class ScriptableObject extends SlotMapOwner
             int index) {
         // this property lookup cannot happen from inside getMap().compute lambda
         // as it risks causing a deadlock if ThreadSafeSlotMapContainer is used
-        // and `this` is in prototype chain of `desc`
-        Object enumerable = getProperty(desc, "enumerable");
-        Object writable = getProperty(desc, "writable");
-        Object configurable = getProperty(desc, "configurable");
-        Object getter = getProperty(desc, "get");
-        Object setter = getProperty(desc, "set");
-        Object value = getProperty(desc, "value");
-        boolean accessorDescriptor = isAccessorDescriptor(desc);
+        // and `this` is in the prototype chain of `desc`
+        final Object enumerable = getProperty(desc, "enumerable");
+        final Object writable = getProperty(desc, "writable");
+        final Object configurable = getProperty(desc, "configurable");
+        final boolean accessorDescriptor = isAccessorDescriptor(desc);
+
+        // getProperty() processes the whole prototype chain,
+        // we should do this only if we need the result later
+        final Object getter;
+        final Object setter;
+        final Object value;
+        if (accessorDescriptor) {
+            getter = getProperty(desc, "get");
+            setter = getProperty(desc, "set");
+            value = null;
+        } else {
+            getter = null;
+            setter = null;
+            value = getProperty(desc, "value");
+        }
 
         // Do some complex stuff depending on whether or not the key
         // already exists in a single hash map operation
@@ -1723,7 +1736,12 @@ public abstract class ScriptableObject extends SlotMapOwner
                                 if (slot instanceof AccessorSlot) {
                                     fslot = (AccessorSlot) slot;
                                 } else {
-                                    fslot = new AccessorSlot(slot);
+                                    if ((slot instanceof LambdaAccessorSlot)
+                                            && NativeObject.PROTO_PROPERTY.equals(key)) {
+                                        fslot = ((LambdaAccessorSlot) slot).asAccessorSlot();
+                                    } else {
+                                        fslot = new AccessorSlot(slot);
+                                    }
                                     slot = fslot;
                                 }
                                 if (getter != NOT_FOUND) {
@@ -2765,7 +2783,7 @@ public abstract class ScriptableObject extends SlotMapOwner
      */
     private boolean putImpl(
             Object key, int index, Scriptable start, Object value, boolean isThrow) {
-        // This method is very hot (basically called on each assignment)
+        // This method is very hot (basically called on each assignment),
         // so we inline the extensible/sealed checks below.
         Slot slot;
         if (this != start) {

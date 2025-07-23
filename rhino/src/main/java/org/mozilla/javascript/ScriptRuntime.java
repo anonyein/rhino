@@ -169,7 +169,7 @@ public class ScriptRuntime {
         new ClassCache().associate(scope);
 
         LambdaConstructor function = BaseFunction.init(cx, scope, sealed);
-        LambdaConstructor obj = NativeObject.init(scope, sealed);
+        LambdaConstructor obj = NativeObject.init(cx, scope, sealed);
 
         Scriptable objectProto = obj.getPrototype();
 
@@ -241,7 +241,6 @@ public class ScriptRuntime {
             new LazilyLoadedCtor(scope, "Uint32Array", sealed, true, NativeUint32Array::init);
             new LazilyLoadedCtor(scope, "BigInt64Array", sealed, true, NativeBigInt64Array::init);
             new LazilyLoadedCtor(scope, "BigUint64Array", sealed, true, NativeBigUint64Array::init);
-            new LazilyLoadedCtor(scope, "Uint32Array", sealed, true, NativeUint32Array::init);
             new LazilyLoadedCtor(scope, "Float32Array", sealed, true, NativeFloat32Array::init);
             new LazilyLoadedCtor(scope, "Float64Array", sealed, true, NativeFloat64Array::init);
             new LazilyLoadedCtor(scope, "DataView", sealed, true, NativeDataView::init);
@@ -821,12 +820,12 @@ public class ScriptRuntime {
         }
         double integerIndex = toInteger(val);
         if (integerIndex < 0) {
-            throw rangeError("index out of range");
+            throw rangeErrorById("msg.out.of.range.index", integerIndex);
         }
         // ToLength
         double index = Math.min(integerIndex, NativeNumber.MAX_SAFE_INTEGER);
         if (integerIndex != index) {
-            throw rangeError("index out of range");
+            throw rangeErrorById("msg.out.of.range.index", integerIndex);
         }
         return (int) index;
     }
@@ -2144,8 +2143,19 @@ public class ScriptRuntime {
         return wrapBoolean(ref.delete(cx));
     }
 
-    static boolean isSpecialProperty(String s) {
-        return s.equals("__proto__") || s.equals("__parent__");
+    static boolean isSpecialProperty(String s, int languageVersion) {
+        if (languageVersion >= Context.VERSION_ES6) {
+            return s.equals("__parent__");
+        }
+
+        return s.equals(NativeObject.PROTO_PROPERTY) || s.equals("__parent__");
+    }
+
+    // for the super handling, we still not language dependent
+    // have a look at the comment in for more details
+    // org.mozilla.javascript.IRFactory.createPropertyGet()
+    static boolean isSpecialSuperProperty(String s) {
+        return s.equals(NativeObject.PROTO_PROPERTY) || s.equals("__parent__");
     }
 
     /**
@@ -2822,11 +2832,18 @@ public class ScriptRuntime {
      * Prepare for calling name(...): return function corresponding to name and make current top
      * scope available as ScriptRuntime.lastStoredScriptable() for consumption as thisObj. The
      * caller must call ScriptRuntime.lastStoredScriptable() immediately after calling this method.
+     *
+     * @deprecated use {@link #getNameAndThis(String, Context, Scriptable)}
      */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getNameFunctionAndThis(String name, Context cx, Scriptable scope) {
         return getNameFunctionAndThisInner(name, cx, scope, false);
     }
 
+    /**
+     * @deprecated use {@link #getNameAndThisOptional(String, Context, Scriptable)}
+     */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getNameFunctionAndThisOptional(
             String name, Context cx, Scriptable scope) {
         return getNameFunctionAndThisInner(name, cx, scope, true);
@@ -2862,8 +2879,7 @@ public class ScriptRuntime {
 
     /**
      * Prepare for calling name(...): return function corresponding to name and make current top
-     * scope available as ScriptRuntime.lastStoredScriptable() for consumption as thisObj. The
-     * caller must call ScriptRuntime.lastStoredScriptable() immediately after calling this method.
+     * scope available as part of the result.
      */
     public static LookupResult getNameAndThis(String name, Context cx, Scriptable scope) {
         return getNameAndThisInner(name, cx, scope, false);
@@ -2918,12 +2934,19 @@ public class ScriptRuntime {
      * properly converted to Scriptable available as ScriptRuntime.lastStoredScriptable() for
      * consumption as thisObj. The caller must call ScriptRuntime.lastStoredScriptable() immediately
      * after calling this method.
+     *
+     * @deprecated use {@link #getElemAndThis(Object, Object, Context, Scriptable)}
      */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getElemFunctionAndThis(
             Object obj, Object elem, Context cx, Scriptable scope) {
         return getElemFunctionAndThisInner(obj, elem, cx, scope, false);
     }
 
+    /**
+     * @deprecated use {@link #getElemAndThisOptional(Object, Object, Context, Scriptable)}
+     */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getElemFunctionAndThisOptional(
             Object obj, Object elem, Context cx, Scriptable scope) {
         return getElemFunctionAndThisInner(obj, elem, cx, scope, true);
@@ -2970,6 +2993,10 @@ public class ScriptRuntime {
         return (Callable) value;
     }
 
+    /**
+     * Prepare for calling obj[id](...): return function corresponding to obj[id] and make obj
+     * properly converted to Scriptable available in the result.
+     */
     public static LookupResult getElemAndThis(
             Object obj, Object elem, Context cx, Scriptable scope) {
         return getElemAndThisInner(obj, elem, cx, scope, false);
@@ -3037,12 +3064,19 @@ public class ScriptRuntime {
      * obj properly converted to Scriptable available as ScriptRuntime.lastStoredScriptable() for
      * consumption as thisObj. The caller must call ScriptRuntime.lastStoredScriptable() immediately
      * after calling this method.
+     *
+     * @deprecated Use {@link #getPropAndThis(Object, String, Context, Scriptable)} instead
      */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getPropFunctionAndThis(
             Object obj, String property, Context cx, Scriptable scope) {
         return getPropFunctionAndThisInner(obj, property, cx, scope, false);
     }
 
+    /**
+     * @deprecated Use {@link #getPropAndThis(Object, String, Context, Scriptable)} instead
+     */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getPropFunctionAndThisOptional(
             Object obj, String property, Context cx, Scriptable scope) {
         return getPropFunctionAndThisInner(obj, property, cx, scope, true);
@@ -3096,9 +3130,7 @@ public class ScriptRuntime {
 
     /**
      * Prepare for calling obj.property(...): return function corresponding to obj.property and make
-     * obj properly converted to Scriptable available as ScriptRuntime.lastStoredScriptable() for
-     * consumption as thisObj. The caller must call ScriptRuntime.lastStoredScriptable() immediately
-     * after calling this method.
+     * obj properly converted to Scriptable in the result.
      */
     public static LookupResult getPropAndThis(
             Object obj, String property, Context cx, Scriptable scope) {
@@ -3155,11 +3187,18 @@ public class ScriptRuntime {
      * &lt;expression&gt; and make parent scope of the function available as
      * ScriptRuntime.lastStoredScriptable() for consumption as thisObj. The caller must call
      * ScriptRuntime.lastStoredScriptable() immediately after calling this method.
+     *
+     * @deprecated Use {@link #getValueAndThis(Object, Context)} instead
      */
+    @Deprecated
     public static Callable getValueFunctionAndThis(Object value, Context cx) {
         return getValueFunctionAndThisInner(value, cx, false);
     }
 
+    /**
+     * @deprecated Use {@link #getValueAndThisOptional(Object, Context)} instead
+     */
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Callable getValueFunctionAndThisOptional(Object value, Context cx) {
         return getValueFunctionAndThisInner(value, cx, true);
     }
@@ -3199,6 +3238,10 @@ public class ScriptRuntime {
         return f;
     }
 
+    /**
+     * Prepare for calling &lt;expression&gt;(...): return function corresponding to
+     * &lt;expression&gt; and make parent scope of the function available in the result.
+     */
     public static LookupResult getValueAndThis(Object value, Context cx) {
         return getValueAndThisInner(value, cx, false);
     }
@@ -3216,7 +3259,7 @@ public class ScriptRuntime {
                             || Undefined.isUndefined(value))) {
                 return null;
             }
-            return new LookupResult(value, null, value == null ? "null" : value.toString());
+            return new LookupResult(value, null, value);
         }
 
         Callable f = (Callable) value;
@@ -3237,7 +3280,7 @@ public class ScriptRuntime {
                 thisObj = ScriptableObject.getTopLevelScope(thisObj);
             }
         }
-        return new LookupResult(f, thisObj, value == null ? "null" : value.toString());
+        return new LookupResult(f, thisObj, value);
     }
 
     /**
@@ -5384,11 +5427,27 @@ public class ScriptRuntime {
                     StringIdOrIndex s = toStringIdOrIndex(id);
                     if (s.stringId == null) {
                         object.put(s.index, object, value);
-                    } else if (isSpecialProperty(s.stringId)) {
-                        Ref ref = specialRef(object, s.stringId, cx, scope);
-                        ref.set(cx, scope, value);
                     } else {
-                        object.put(s.stringId, object, value);
+                        String stringId = s.stringId;
+                        if (isSpecialProperty(stringId, cx.getLanguageVersion())) {
+                            Ref ref = specialRef(object, stringId, cx, scope);
+                            ref.set(cx, scope, value);
+                        } else if (cx.getLanguageVersion() >= Context.VERSION_ES6
+                                && NativeObject.PROTO_PROPERTY.equals(stringId)) {
+                            if (value == null) {
+                                object.setPrototype(null);
+                            } else if (value instanceof NativeFunction) {
+                                if (((NativeFunction) value).isShorthand()) {
+                                    object.put(stringId, object, value);
+                                } else {
+                                    NativeObject.js_protoSetter(object, value);
+                                }
+                            } else if (value instanceof Scriptable) {
+                                NativeObject.js_protoSetter(object, value);
+                            }
+                        } else {
+                            object.put(stringId, object, value);
+                        }
                     }
                 }
             } else {
@@ -5866,18 +5925,21 @@ public class ScriptRuntime {
         return value;
     }
 
+    @Deprecated(since = "1.8.1", forRemoval = true)
     private static void storeScriptable(Context cx, Scriptable value) {
         // The previously stored scratchScriptable should be consumed
         if (cx.scratchScriptable != null) throw new IllegalStateException();
         cx.scratchScriptable = value;
     }
 
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static Scriptable lastStoredScriptable(Context cx) {
         Scriptable result = cx.scratchScriptable;
         cx.scratchScriptable = null;
         return result;
     }
 
+    @Deprecated(since = "1.8.1", forRemoval = true)
     public static void discardLastStoredScriptable(Context cx) {
         if (cx.scratchScriptable == null) throw new IllegalStateException();
         cx.scratchScriptable = null;
@@ -6011,9 +6073,9 @@ public class ScriptRuntime {
 
         private final Object result;
         private final Scriptable thisObj;
-        private final String name;
+        private final Object name;
 
-        LookupResult(Object result, Scriptable thisObj, String name) {
+        LookupResult(Object result, Scriptable thisObj, Object name) {
             this.result = result;
             this.thisObj = thisObj;
             this.name = name;
@@ -6028,7 +6090,7 @@ public class ScriptRuntime {
         }
 
         public String getName() {
-            return name;
+            return name == null ? "null" : name.toString();
         }
 
         /**
@@ -6040,6 +6102,14 @@ public class ScriptRuntime {
                 throw notFunctionError(result, name);
             }
             return (Callable) result;
+        }
+
+        /**
+         * A convenience method to coerce the result to a Callable as in "getCallable()", then call
+         * the result with ths stored "this".
+         */
+        public Object call(Context cx, Scriptable scope, Object[] args) {
+            return getCallable().call(cx, scope, thisObj, args);
         }
     }
 

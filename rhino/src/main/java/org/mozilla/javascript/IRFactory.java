@@ -95,6 +95,7 @@ public final class IRFactory {
 
     private Parser parser;
     private AstNodePosition astNodePos;
+    private boolean outerScopeIsStrict;
 
     public IRFactory(CompilerEnvirons env, String sourceString) {
         this(env, null, sourceString, env.getErrorReporter());
@@ -618,6 +619,8 @@ public final class IRFactory {
         Node mexpr = decompileFunctionHeader(fn);
         int index = parser.currentScriptOrFn.addFunction(fn);
 
+        var savedStrict = outerScopeIsStrict;
+        outerScopeIsStrict |= fn.isInStrictMode();
         Parser.PerFunctionVariables savedVars = parser.createPerFunctionVariables(fn);
         try {
             // If we start needing to record much more codegen metadata during
@@ -693,6 +696,7 @@ public final class IRFactory {
         } finally {
             --parser.nestingOfFunction;
             savedVars.restore();
+            outerScopeIsStrict = savedStrict;
         }
     }
 
@@ -1054,6 +1058,7 @@ public final class IRFactory {
     private Node transformScript(ScriptNode node) {
         if (parser.currentScope != null) Kit.codeBug();
         parser.currentScope = node;
+        outerScopeIsStrict = node.isInStrictMode();
         Node body = new Node(Token.BLOCK);
         for (Node kid : node) {
             body.addChildToBack(transform((AstNode) kid));
@@ -1413,10 +1418,14 @@ public final class IRFactory {
         return new Node(Token.CATCH, varName, catchCond, stmts, lineno, column);
     }
 
-    private static Node initFunction(
+    private Node initFunction(
             FunctionNode fnNode, int functionIndex, Node statements, int functionType) {
         fnNode.setFunctionType(functionType);
         fnNode.addChildToBack(statements);
+
+        if (outerScopeIsStrict && !fnNode.isInStrictMode()) {
+            fnNode.setInStrictMode(true);
+        }
 
         int functionCount = fnNode.getFunctionCount();
         if (functionCount != 0) {
@@ -2015,23 +2024,32 @@ public final class IRFactory {
                 return parser.createName(name);
             }
             parser.checkActivationName(name, Token.GETPROP);
-            if (ScriptRuntime.isSpecialProperty(name)) {
-                if (target.getType() == Token.SUPER) {
-                    // We have an access to super.__proto__ or super.__parent__.
-                    // This needs to behave in the same way as this.__proto__ - it really is not
-                    // obvious why, but you can test it in v8 or any other engine. So, we just
-                    // replace SUPER with THIS in the AST. It's a bit hacky, but it works - see the
-                    // test cases in SuperTest!
-                    if (!(target instanceof KeywordLiteral)) {
-                        throw Kit.codeBug();
-                    }
-                    KeywordLiteral oldTarget = (KeywordLiteral) target;
-                    target =
-                            new KeywordLiteral(
-                                    oldTarget.getPosition(), oldTarget.getLength(), Token.THIS);
-                    target.setLineColumnNumber(oldTarget.getLineno(), oldTarget.getColumn());
-                }
 
+            if (target.getType() == Token.SUPER && ScriptRuntime.isSpecialSuperProperty(name)) {
+                // We have access to super.__proto__ or super.__parent__.
+                // This needs to behave in the same way as this.__proto__ - it really is not
+                // obvious why, but you can test it in v8 or any other engine. So, we just
+                // replace SUPER with THIS in the AST. It's a bit hacky, but it works - see the
+                // test cases in SuperTest!
+                if (!(target instanceof KeywordLiteral)) {
+                    throw Kit.codeBug();
+                }
+                KeywordLiteral oldTarget = (KeywordLiteral) target;
+                target =
+                        new KeywordLiteral(
+                                oldTarget.getPosition(), oldTarget.getLength(), Token.THIS);
+                target.setLineColumnNumber(oldTarget.getLineno(), oldTarget.getColumn());
+
+                Node ref = new Node(Token.REF_SPECIAL, target);
+                ref.putProp(Node.NAME_PROP, name);
+                Node getRef = new Node(Token.GET_REF, ref);
+                if (type == Token.QUESTION_DOT) {
+                    ref.putIntProp(Node.OPTIONAL_CHAINING, 1);
+                    getRef.putIntProp(Node.OPTIONAL_CHAINING, 1);
+                }
+                return getRef;
+            } else if (ScriptRuntime.isSpecialProperty(
+                    name, parser.compilerEnv.getLanguageVersion())) {
                 Node ref = new Node(Token.REF_SPECIAL, target);
                 ref.putProp(Node.NAME_PROP, name);
                 Node getRef = new Node(Token.GET_REF, ref);

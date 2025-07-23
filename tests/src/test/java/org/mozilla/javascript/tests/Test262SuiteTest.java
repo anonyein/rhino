@@ -54,6 +54,7 @@ import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.drivers.TestUtils;
 import org.mozilla.javascript.tools.SourceReader;
 import org.mozilla.javascript.tools.shell.ShellContextFactory;
+import org.mozilla.javascript.typedarrays.NativeArrayBuffer;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -472,8 +473,11 @@ public class Test262SuiteTest {
 
         public static Object detachArrayBuffer(
                 Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-            throw new UnsupportedOperationException(
-                    "$262.detachArrayBuffer() method not yet implemented");
+            Scriptable buf = ScriptRuntime.toObject(scope, args[0]);
+            if (buf instanceof NativeArrayBuffer) {
+                ((NativeArrayBuffer) buf).detach();
+            }
+            return Undefined.instance;
         }
 
         public static Object getAgent(Scriptable scriptable) {
@@ -505,7 +509,7 @@ public class Test262SuiteTest {
                                             "Error reading test file " + harnessPath, ioe);
                                 }
                             });
-            harnessScript.exec(cx, scope);
+            harnessScript.exec(cx, scope, scope);
         }
 
         $262 proto = $262.init(cx, scope);
@@ -555,7 +559,7 @@ public class Test262SuiteTest {
                 Script caseScript = cx.compileString(str, testFilePath, line, null);
 
                 failedEarly = false; // not after this line
-                caseScript.exec(cx, scope);
+                caseScript.exec(cx, scope, scope);
 
                 if (testCase.isNegative()) {
                     fail(

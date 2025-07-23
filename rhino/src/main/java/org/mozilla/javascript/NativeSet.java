@@ -118,6 +118,7 @@ public class NativeSet extends ScriptableObject {
         ScriptRuntimeES6.addSymbolSpecies(cx, scope, constructor);
         if (sealed) {
             constructor.sealObject();
+            ((ScriptableObject) constructor.getPrototypeProperty()).sealObject();
         }
         return constructor;
     }
@@ -211,10 +212,8 @@ public class NativeSet extends ScriptableObject {
         // been replaced. Since we're not fully constructed yet, create a dummy instance
         // so that we can get our own prototype.
         ScriptableObject dummy = ensureScriptableObject(cx.newObject(scope, set.getClassName()));
-        final Callable add =
-                ScriptRuntime.getPropFunctionAndThis(dummy.getPrototype(), "add", cx, scope);
-        // Clean up the value left around by the previous function
-        ScriptRuntime.lastStoredScriptable(cx);
+        var addCall = ScriptRuntime.getPropAndThis(dummy.getPrototype(), "add", cx, scope);
+        Callable add = addCall.getCallable();
 
         // Finally, run through all the iterated values and add them!
         try (IteratorLikeIterable it = new IteratorLikeIterable(cx, scope, ito)) {

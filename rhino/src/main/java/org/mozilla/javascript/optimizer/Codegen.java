@@ -574,16 +574,18 @@ public class Codegen implements Evaluator {
                 "exec",
                 "(Lorg/mozilla/javascript/Context;"
                         + "Lorg/mozilla/javascript/Scriptable;"
+                        + "Lorg/mozilla/javascript/Scriptable;"
                         + ")Ljava/lang/Object;",
                 (short) (ACC_PUBLIC | ACC_FINAL));
 
         final int CONTEXT_ARG = 1;
         final int SCOPE_ARG = 2;
+        final int THIS_OBJ_ARG = 3;
 
         cfw.addLoadThis();
         cfw.addALoad(CONTEXT_ARG);
         cfw.addALoad(SCOPE_ARG);
-        cfw.add(ByteCode.DUP);
+        cfw.addALoad(THIS_OBJ_ARG);
         cfw.add(ByteCode.ACONST_NULL);
         cfw.addInvoke(
                 ByteCode.INVOKEVIRTUAL,
@@ -603,8 +605,8 @@ public class Codegen implements Evaluator {
                 "()V");
 
         cfw.add(ByteCode.ARETURN);
-        // 3 = this + context + scope
-        cfw.stopMethod((short) 3);
+        // 4 = this + context + scope + thisObj
+        cfw.stopMethod((short) 4);
     }
 
     private static void generateScriptCtor(ClassFileWriter cfw) {
@@ -741,7 +743,8 @@ public class Codegen implements Evaluator {
         final int Do_hasRestParameter = 7;
         final int Do_hasDefaultParameters = 8;
         final int Do_isStrict = 9;
-        final int SWITCH_COUNT = 10;
+        final int Do_isShorthand = 10;
+        final int SWITCH_COUNT = 11;
 
         for (int methodIndex = 0; methodIndex != SWITCH_COUNT; ++methodIndex) {
             if (methodIndex == Do_getRawSource && rawSource == null) {
@@ -795,6 +798,10 @@ public class Codegen implements Evaluator {
                 case Do_isStrict:
                     methodLocals = 1; // Only this
                     cfw.startMethod("isStrict", "()Z", ACC_PUBLIC);
+                    break;
+                case Do_isShorthand:
+                    methodLocals = 1; // Only this
+                    cfw.startMethod("isShorthand", "()Z", ACC_PUBLIC);
                     break;
                 default:
                     throw Kit.codeBug();
@@ -964,6 +971,11 @@ public class Codegen implements Evaluator {
 
                     case Do_isStrict:
                         cfw.addPush(n.isInStrictMode() ? 1 : 0);
+                        cfw.add(ByteCode.IRETURN);
+                        break;
+
+                    case Do_isShorthand:
+                        cfw.addPush(n.isShorthand() ? 1 : 0);
                         cfw.add(ByteCode.IRETURN);
                         break;
 

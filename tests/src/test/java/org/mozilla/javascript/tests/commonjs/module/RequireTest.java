@@ -46,7 +46,7 @@ public class RequireTest {
 
     private static Context createContext() {
         final Context cx = Context.enter();
-        cx.setOptimizationLevel(-1);
+        cx.setInterpretedMode(true);
         return cx;
     }
 
@@ -166,6 +166,15 @@ public class RequireTest {
                     }
                     return null;
                 });
+    }
+
+    @Test
+    public void thisScopeGlobalThis() throws Exception {
+        try (Context cx = createContext()) {
+            final Scriptable scope = cx.initStandardObjects();
+            final Require require = getSandboxedRequire(cx, scope, false);
+            require.requireMain(cx, "thisScopeGlobalThisMain");
+        }
     }
 
     private Reader getReader(String name) {
