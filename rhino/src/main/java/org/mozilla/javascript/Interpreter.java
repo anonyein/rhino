@@ -11,11 +11,17 @@ import static org.mozilla.javascript.UniqueTag.DOUBLE_MARK;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.math.BigInteger;
+import java.sql.Ref;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.function.Function;
+
+import javax.naming.Context;
+
 import org.mozilla.javascript.ScriptRuntime.NoSuchMethodShim;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.ScriptNode;
@@ -1037,31 +1043,6 @@ public final class Interpreter extends Icode implements Evaluator {
         } else {
             ex.interpreterStackInfo = cx.lastInterpreterFrame;
         }
-        array[array.length - 1] = (CallFrame) cx.lastInterpreterFrame;
-
-        int interpreterFrameCount = 0;
-        for (int i = 0; i != array.length; ++i) {
-            interpreterFrameCount += 1 + array[i].frameIndex;
-        }
-
-        int[] linePC = new int[interpreterFrameCount];
-        // Fill linePC with pc positions from all interpreter frames.
-        // Start from the most nested frame
-        int linePCIndex = interpreterFrameCount;
-        for (int i = array.length; i != 0;) {
-            --i;
-            CallFrame frame = array[i];
-            while (frame != null) {
-                --linePCIndex;
-                linePC[linePCIndex] = frame.pcSourceLineStart;
-                frame = frame.parentFrame;
-            }
-        }
-        if (linePCIndex != 0)
-            Kit.codeBug();
-
-        ex.interpreterStackInfo = array;
-        ex.interpreterLineData = linePC;
     }
 
     @Override
@@ -1255,25 +1236,26 @@ public final class Interpreter extends Icode implements Evaluator {
     public static Object resumeGenerator(
             Context cx, Scriptable scope, int operation, Object savedState, Object value) {
         CallFrame frame = (CallFrame) savedState;
-        GeneratorState generatorState = new GeneratorState(operation, value);
-        if (operation == NativeGenerator.GENERATOR_CLOSE) {
-            try {
-                return interpretLoop(cx, frame, generatorState);
-            } catch (RuntimeException e) {
-                // Only propagate exceptions other than closingException
-                if (e != value)
-                    throw e;
+        CallFrame activeFrame = frame.shallowCloneFrozen((CallFrame) cx.lastInterpreterFrame);
+        try {
+            GeneratorState generatorState = new GeneratorState(operation, value);
+            if (operation == NativeGenerator.GENERATOR_CLOSE) {
+                try {
+                    return interpretLoop(cx, activeFrame, generatorState);
+                } catch (RuntimeException e) {
+                    // Only propagate exceptions other than closingException
+                    if (e != value)
+                        throw e;
+                }
+                return Undefined.instance;
             }
             Object result = interpretLoop(cx, activeFrame, generatorState);
-            if (generatorState.returnedException != null) throw generatorState.returnedException;
+            if (generatorState.returnedException != null)
+                throw generatorState.returnedException;
             return result;
         } finally {
             activeFrame.syncStateToFrame(frame);
         }
-        Object result = interpretLoop(cx, frame, generatorState);
-        if (generatorState.returnedException != null)
-            throw generatorState.returnedException;
-        return result;
     }
 
     public static Object restartContinuation(
