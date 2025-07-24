@@ -19,8 +19,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
-import javax.naming.Context;
-
 import org.mozilla.javascript.ScriptRuntime.NoSuchMethodShim;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.ScriptNode;
