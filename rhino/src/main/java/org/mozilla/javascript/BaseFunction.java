@@ -7,13 +7,17 @@
 package org.mozilla.javascript;
 
 import java.util.EnumSet;
+import org.mozilla.javascript.Function;
 
 /**
- * The base class for Function objects. That is one of two purposes. It is also the prototype for
- * every "function" defined except those that are used as GeneratorFunctions via the ES6 "function
+ * The base class for Function objects. That is one of two purposes. It is also
+ * the prototype for
+ * every "function" defined except those that are used as GeneratorFunctions via
+ * the ES6 "function
  * *" syntax.
  *
- * <p>See ECMA 15.3.
+ * <p>
+ * See ECMA 15.3.
  *
  * @author Norris Boyd
  */
@@ -29,17 +33,15 @@ public class BaseFunction extends ScriptableObject implements Function {
     private static final String PROTOTYPE_PROPERTY_NAME = "prototype";
 
     static LambdaConstructor init(Context cx, Scriptable scope, boolean sealed) {
-        LambdaConstructor ctor =
-                new LambdaConstructor(
-                        scope,
-                        FUNCTION_CLASS,
-                        1,
-                        BaseFunction::js_constructorCall,
-                        BaseFunction::js_constructor);
+        LambdaConstructor ctor = new LambdaConstructor(
+                scope,
+                FUNCTION_CLASS,
+                1,
+                BaseFunction::js_constructorCall,
+                BaseFunction::js_constructor);
 
-        var proto =
-                new LambdaFunction(
-                        scope, "", 0, null, (lcx, lscope, lthisObj, largs) -> Undefined.instance);
+        var proto = new LambdaFunction(
+                scope, "", 0, null, (lcx, lscope, lthisObj, largs) -> Undefined.instance);
 
         proto.defineProperty("constructor", ctor, DONTENUM);
         // Set the constructor correctly here. i.e. ctor.prototype.constructor == ctor
@@ -121,22 +123,20 @@ public class BaseFunction extends ScriptableObject implements Function {
         var proto = new NativeObject();
 
         var function = (Scriptable) ScriptableObject.getProperty(scope, FUNCTION_CLASS);
-        var functionProto =
-                (Scriptable) ScriptableObject.getProperty(function, PROTOTYPE_PROPERTY_NAME);
+        var functionProto = (Scriptable) ScriptableObject.getProperty(function, PROTOTYPE_PROPERTY_NAME);
         proto.setPrototype(functionProto);
 
         var iterator = (Scriptable) ScriptableObject.getProperty(scope, "Iterator");
         var iteratorPrototype = ScriptableObject.getProperty(iterator, PROTOTYPE_PROPERTY_NAME);
         ScriptableObject.putProperty(proto, PROTOTYPE_PROPERTY_NAME, iteratorPrototype);
 
-        LambdaConstructor ctor =
-                new LambdaConstructor(
-                        scope,
-                        GENERATOR_FUNCTION_CLASS,
-                        1,
-                        proto,
-                        BaseFunction::js_gen_constructorCall,
-                        BaseFunction::js_gen_constructor);
+        LambdaConstructor ctor = new LambdaConstructor(
+                scope,
+                GENERATOR_FUNCTION_CLASS,
+                1,
+                proto,
+                BaseFunction::js_gen_constructorCall,
+                BaseFunction::js_gen_constructor);
 
         proto.defineProperty("constructor", ctor, DONTENUM);
 
@@ -287,7 +287,8 @@ public class BaseFunction extends ScriptableObject implements Function {
      * Gets the value returned by calling the typeof operator on this object.
      *
      * @see ScriptableObject#getTypeOf()
-     * @return "function" or "undefined" if {@link #avoidObjectDetection()} returns <code>true
+     * @return "function" or "undefined" if {@link #avoidObjectDetection()} returns
+     *         <code>true
      *     </code>
      */
     @Override
@@ -298,13 +299,15 @@ public class BaseFunction extends ScriptableObject implements Function {
     /**
      * Implements the instanceof operator for JavaScript Function objects.
      *
-     * <p><code>
+     * <p>
+     * <code>
      * foo = new Foo();<br>
      * foo instanceof Foo;  // true<br>
      * </code>
      *
      * @param instance The value that appeared on the LHS of the instanceof operator
-     * @return true if the "prototype" property of "this" appears in value's prototype chain
+     * @return true if the "prototype" property of "this" appears in value's
+     *         prototype chain
      */
     @Override
     public boolean hasInstance(Scriptable instance) {
@@ -338,9 +341,8 @@ public class BaseFunction extends ScriptableObject implements Function {
         }
         Object protoProp = null;
         if (thisObj instanceof BoundFunction)
-            protoProp =
-                    ((NativeFunction) ((BoundFunction) thisObj).getTargetFunction())
-                            .getPrototypeProperty();
+            protoProp = ((NativeFunction) ((BoundFunction) thisObj).getTargetFunction())
+                    .getPrototypeProperty();
         else {
             protoProp = ScriptableObject.getProperty(thisObj, PROTOTYPE_PROPERTY_NAME);
         }
@@ -469,7 +471,10 @@ public class BaseFunction extends ScriptableObject implements Function {
         return ensureType(x, BaseFunction.class, functionName);
     }
 
-    /** Make value as DontEnum, DontDelete, ReadOnly prototype property of this Function object */
+    /**
+     * Make value as DontEnum, DontDelete, ReadOnly prototype property of this
+     * Function object
+     */
     public void setImmunePrototypeProperty(Object value) {
         if ((prototypePropertyAttributes & READONLY) != 0) {
             throw new IllegalStateException();
@@ -540,10 +545,14 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Creates new script object. The default implementation of {@link #construct} uses this method
-     * to to get the value for <code>thisObj</code> argument when invoking {@link #call}. The method
-     * is allowed to return <code>null</code> to indicate that {@link #call} will create a new
-     * object itself. In this case {@link #construct} will set scope and prototype on the result
+     * Creates new script object. The default implementation of {@link #construct}
+     * uses this method
+     * to to get the value for <code>thisObj</code> argument when invoking
+     * {@link #call}. The method
+     * is allowed to return <code>null</code> to indicate that {@link #call} will
+     * create a new
+     * object itself. In this case {@link #construct} will set scope and prototype
+     * on the result
      * {@link #call} unless they are already set.
      */
     public Scriptable createObject(Context cx, Scriptable scope) {
@@ -554,10 +563,11 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Decompile the source information associated with this js function/script back into a string.
+     * Decompile the source information associated with this js function/script back
+     * into a string.
      *
      * @param indent How much to indent the decompiled result.
-     * @param flags Flags specifying format of decompilation output.
+     * @param flags  Flags specifying format of decompilation output.
      */
     String decompile(int indent, EnumSet<DecompilerFlag> flags) {
         StringBuilder sb = new StringBuilder();
@@ -587,7 +597,8 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Sets the attributes of the "name", "length", and "arity" properties, which differ for many
+     * Sets the attributes of the "name", "length", and "arity" properties, which
+     * differ for many
      * native objects.
      */
     public void setStandardPropertyAttributes(int attributes) {
@@ -599,15 +610,15 @@ public class BaseFunction extends ScriptableObject implements Function {
     public void setPrototypePropertyAttributes(int attributes) {
         prototypePropertyAttributes = attributes;
         getMap().compute(
-                        this,
-                        PROTOTYPE_PROPERTY_NAME,
-                        0,
-                        (k, i, s) -> {
-                            if (s != null) {
-                                s.setAttributes(attributes);
-                            }
-                            return s;
-                        });
+                this,
+                PROTOTYPE_PROPERTY_NAME,
+                0,
+                (k, i, s) -> {
+                    if (s != null) {
+                        s.setAttributes(attributes);
+                    }
+                    return s;
+                });
     }
 
     protected boolean hasPrototypeProperty() {
@@ -681,7 +692,8 @@ public class BaseFunction extends ScriptableObject implements Function {
         if (isGeneratorFunction) {
             sourceBuf.append("* ");
         }
-        /* version != 1.2 Function constructor behavior -
+        /*
+         * version != 1.2 Function constructor behavior -
          * print 'anonymous' as the function name if the
          * version (under which the function was compiled) is
          * less than 1.2... or if it's greater than 1.2, because
@@ -756,7 +768,7 @@ public class BaseFunction extends ScriptableObject implements Function {
     private Scriptable homeObject = null;
 
     // For function object instances, attributes are
-    //  {configurable:false, enumerable:false};
+    // {configurable:false, enumerable:false};
     // see ECMA 15.3.5.2
     private int prototypePropertyAttributes = PERMANENT | DONTENUM;
 }
