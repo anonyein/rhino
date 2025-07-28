@@ -11,11 +11,17 @@ import static org.mozilla.javascript.UniqueTag.DOUBLE_MARK;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.math.BigInteger;
+import java.sql.Ref;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.function.Function;
+
+import javax.naming.Context;
+
 import org.mozilla.javascript.ScriptRuntime.NoSuchMethodShim;
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.ast.ScriptNode;
@@ -3642,11 +3648,20 @@ public final class Interpreter extends Icode implements Evaluator {
                     throw Context.reportRuntimeErrorById(
                             "msg.var.redecl", frame.idata.argNames[state.indexReg]);
                 }
-                if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
+                
+                // HtmlUnit - HACK
+                // disable this to allow const updates in loops
+                // see JavaScriptEngine2Test.constInLoop()
+                //
+                // HtmlUnit - HACK
+                // if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
+                // HtmlUnit - HACK
                     vars[state.indexReg] = frame.stack[state.stackTop];
                     varAttributes[state.indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
-                }
+                // HtmlUnit - HACK
+                // }
+                // HtmlUnit - HACK
             } else {
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
@@ -3671,11 +3686,20 @@ public final class Interpreter extends Icode implements Evaluator {
                     throw Context.reportRuntimeErrorById(
                             "msg.var.redecl", frame.idata.argNames[state.indexReg]);
                 }
-                if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
+
+                // HtmlUnit - HACK
+                // disable this to allow const updates in loops
+                // see JavaScriptEngine2Test.constInLoop()
+                //
+                // HtmlUnit - HACK
+                // if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
+                // HtmlUnit - HACK
                     vars[state.indexReg] = frame.stack[state.stackTop];
                     varAttributes[state.indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
-                }
+                // HtmlUnit - HACK
+                // }
+                // HtmlUnit - HACK
             } else {
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
