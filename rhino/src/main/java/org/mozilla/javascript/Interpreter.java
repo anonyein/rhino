@@ -3667,20 +3667,11 @@ public final class Interpreter extends Icode implements Evaluator {
                     throw Context.reportRuntimeErrorById(
                             "msg.var.redecl", frame.idata.argNames[state.indexReg]);
                 }
-                
-                // HtmlUnit - HACK
-                // disable this to allow const updates in loops
-                // see JavaScriptEngine2Test.constInLoop()
-                //
-                // HtmlUnit - HACK
-                // if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
-                // HtmlUnit - HACK
+                if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
                     vars[state.indexReg] = frame.stack[state.stackTop];
                     varAttributes[state.indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
-                // HtmlUnit - HACK
-                // }
-                // HtmlUnit - HACK
+                }
             } else {
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
