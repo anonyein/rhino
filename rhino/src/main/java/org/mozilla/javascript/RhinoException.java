@@ -189,7 +189,7 @@ public abstract class RhinoException extends RuntimeException {
         StringBuilder buffer = new StringBuilder();
         String lineSeparator = SecurityUtilities.getSystemProperty("line.separator");
 
-        if ((stackStyle == StackStyle.V8 || stackStyle == StackStyle.RHINO) && !"null".equals(message)) {
+        if ((stackStyle == StackStyle.V8) && !"null".equals(message)) {
             // V8 Actually puts the error message at the top of "stack."
             buffer.append(message);
             buffer.append(lineSeparator);
