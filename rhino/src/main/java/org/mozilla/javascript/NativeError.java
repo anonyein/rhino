@@ -259,7 +259,7 @@ final class NativeError extends IdScriptableObject {
         // Determine whether to format the stack trace ourselves, or call the user's code to do it
         Object value;
         if (prepare == null) {
-            value = RhinoException.formatStackTrace(stackTrace, stackProvider.details());
+            value = RhinoException.formatStackTrace(stackTrace, stackProvider.toString());
         } else {
             value = callPrepareStack(prepare, stackTrace);
         }
