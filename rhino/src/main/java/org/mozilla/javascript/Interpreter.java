@@ -1052,6 +1052,7 @@ public final class Interpreter extends Icode implements Evaluator {
             ex.interpreterStackInfo = null;
         } else {
             ex.interpreterStackInfo = cx.lastInterpreterFrame;
+            ex.interpreterLineData = ((CallFrame) cx.lastInterpreterFrame).pcSourceLineStart;
         }
     }
 
@@ -1105,7 +1106,7 @@ public final class Interpreter extends Icode implements Evaluator {
                 }
                 sb.append('(');
                 sb.append(idata.itsSourceFile);
-                int pc = calleeFrame == null ? callerFrame.pcSourceLineStart : calleeFrame.parentPC;
+                int pc = calleeFrame == null ? ex.interpreterLineData : calleeFrame.parentPC;
                 if (pc >= 0) {
                     // Include line info only if available
                     sb.append(':');
@@ -1155,7 +1156,7 @@ public final class Interpreter extends Icode implements Evaluator {
                 String fileName = idata.itsSourceFile;
                 String functionName = null;
                 int lineNumber = -1;
-                int pc = calleeFrame == null ? callerFrame.pcSourceLineStart : calleeFrame.parentPC;
+                int pc = calleeFrame == null ? ex.interpreterLineData : calleeFrame.parentPC;
                 if (pc >= 0) {
                     lineNumber = getIndex(idata.itsICode, pc);
                 }
@@ -3491,16 +3492,16 @@ public final class Interpreter extends Icode implements Evaluator {
             }
             if (null == stackTopOne)
                 stackTopOne = fun.call(
-                        cx,
-                        calleeScope,
-                        funThisObj,
-                        getArgsArray(
-                                stack,
-                                sDbl, 
-                                boundArgs,
-                                blen, 
-                                state.stackTop + 1,
-                                state.indexReg));
+                            cx,
+                            calleeScope,
+                            funThisObj,
+                            getArgsArray(
+                                    stack,
+                                    sDbl,
+                                    boundArgs,
+                                    blen,
+                                    state.stackTop + 1,
+                                    state.indexReg));
             stack[state.stackTop] = stackTopOne;
             return null;
         }
