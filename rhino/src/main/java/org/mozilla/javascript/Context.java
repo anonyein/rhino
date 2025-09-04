@@ -2652,9 +2652,6 @@ public class Context implements Closeable {
         if (returnFunction) {
             p.calledByCompileFunction = true;
         }
-        if (isStrictMode()) {
-            p.setDefaultUseStrictDirective(true);
-        }
 
         AstRoot ast = p.parse(sourceString, sourceName, lineno);
         if (returnFunction) {
