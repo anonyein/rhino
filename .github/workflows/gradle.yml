@@ -14,9 +14,7 @@ jobs:
     strategy:
       # Some tests require more CPU, and all can use multiple CPUs
       max-parallel: 1
-      matrix:
-        java: [ '17', '21' ]
-    name: Rhino Java ${{ matrix.java }}
+    name: Rhino Tests
     steps:
     - name: Check out Rhino
       uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.2.2
@@ -28,7 +26,10 @@ jobs:
       # By putting JVMs in reverse order, the last one is the one that
       # will go in the path.
       with:
-        java-version: ${{ matrix.java }}
+        java-version: |
+          11
+          17
+          21
         distribution: 'adopt'
     - name: Build and test Java 21
       run: >-
@@ -37,7 +38,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       if: ${{ always() }}
       with:
-        name: reports-java-${{ matrix.java }}
+        name: reports-java-21
         path: '*/build/reports'
     - name: Build and test Java 17
       env:
@@ -49,6 +50,17 @@ jobs:
       if: ${{ always() }}
       with:
         name: reports-java-17
+        path: '*/build/reports'
+    - name: Build and test Java 11
+      env:
+        RHINO_TEST_JAVA_VERSION: "11"
+      run: >-
+        ./gradlew check
+    - name: Upload results Java 11
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      if: ${{ always() }}
+      with:
+        name: reports-java-11
         path: '*/build/reports'
     - name: Build and test Java 21 - Multithread
       timeout-minutes: 30
