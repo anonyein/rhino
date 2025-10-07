@@ -23,6 +23,7 @@ import java.util.ServiceLoader;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.mozilla.javascript.ast.FunctionNode;
+import org.mozilla.javascript.lc.type.TypeInfo;
 import org.mozilla.javascript.lc.type.impl.factory.ConcurrentFactory;
 import org.mozilla.javascript.typedarrays.NativeArrayBuffer;
 import org.mozilla.javascript.typedarrays.NativeBigInt64Array;
@@ -1245,15 +1246,8 @@ public class ScriptRuntime {
             throw typeErrorById("msg.undef.to.object");
         }
 
-        if (isSymbol(val)) {
-            if (val instanceof SymbolKey) {
-                NativeSymbol result =
-                        new NativeSymbol((SymbolKey) val, NativeSymbol.SymbolKind.REGULAR);
-                setBuiltinProtoAndParent(result, scope, TopLevel.Builtins.Symbol);
-                return result;
-            }
-
-            NativeSymbol result = new NativeSymbol((NativeSymbol) val);
+        if (val instanceof SymbolKey) {
+            NativeSymbol result = new NativeSymbol((SymbolKey) val);
             setBuiltinProtoAndParent(result, scope, TopLevel.Builtins.Symbol);
             return result;
         }
@@ -1283,7 +1277,7 @@ public class ScriptRuntime {
         }
 
         // Extension: Wrap as a LiveConnect object.
-        Object wrapped = cx.getWrapFactory().wrap(cx, scope, val, null);
+        Object wrapped = cx.getWrapFactory().wrap(cx, scope, val, TypeInfo.NONE);
         if (wrapped instanceof Scriptable) return (Scriptable) wrapped;
         throw errorWithClassName("msg.invalid.type", val);
     }
@@ -1930,6 +1924,7 @@ public class ScriptRuntime {
     /** Call obj.[[Put]](id, value) */
     public static Object setObjectElem(
             Object obj, Object elem, Object value, Context cx, Scriptable scope) {
+        verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, elem, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, elem, value);
         return setObjectElem(sobj, elem, value, cx);
     }
@@ -2053,6 +2048,7 @@ public class ScriptRuntime {
     /** A cheaper and less general version of the above for well-known argument types. */
     public static Object setObjectIndex(
             Object obj, double dblIndex, Object value, Context cx, Scriptable scope) {
+        verifyIsScriptableOrComplainWriteErrorInEs5Strict(obj, dblIndex, value, cx);
         Scriptable sobj = asScriptableOrThrowUndefWriteError(cx, scope, obj, dblIndex, value);
         int index = (int) dblIndex;
         if (index == dblIndex && index >= 0) {
@@ -5146,7 +5142,7 @@ public class ScriptRuntime {
             }
 
             if (javaException != null && isVisible(cx, javaException)) {
-                Object wrap = cx.getWrapFactory().wrap(cx, scope, javaException, null);
+                Object wrap = cx.getWrapFactory().wrap(cx, scope, javaException, TypeInfo.NONE);
                 ScriptableObject.defineProperty(
                         errorObject,
                         "javaException",
@@ -5156,7 +5152,7 @@ public class ScriptRuntime {
                                 | ScriptableObject.DONTENUM);
             }
             if (isVisible(cx, re)) {
-                Object wrap = cx.getWrapFactory().wrap(cx, scope, re, null);
+                Object wrap = cx.getWrapFactory().wrap(cx, scope, re, TypeInfo.NONE);
                 ScriptableObject.defineProperty(
                         errorObject,
                         "rhinoException",
@@ -5245,7 +5241,7 @@ public class ScriptRuntime {
         }
 
         if (javaException != null && isVisible(cx, javaException)) {
-            Object wrap = cx.getWrapFactory().wrap(cx, scope, javaException, null);
+            Object wrap = cx.getWrapFactory().wrap(cx, scope, javaException, TypeInfo.NONE);
             ScriptableObject.defineProperty(
                     errorObject,
                     "javaException",
@@ -5255,7 +5251,7 @@ public class ScriptRuntime {
                             | ScriptableObject.DONTENUM);
         }
         if (isVisible(cx, re)) {
-            Object wrap = cx.getWrapFactory().wrap(cx, scope, re, null);
+            Object wrap = cx.getWrapFactory().wrap(cx, scope, re, TypeInfo.NONE);
             ScriptableObject.defineProperty(
                     errorObject,
                     "rhinoException",
@@ -5788,6 +5784,15 @@ public class ScriptRuntime {
         }
     }
 
+    private static void verifyIsScriptableOrComplainWriteErrorInEs5Strict(
+            Object obj, Object elem, Object value, Context cx) {
+        if (!(obj instanceof Scriptable)
+                && cx.isStrictMode()
+                && cx.getLanguageVersion() >= Context.VERSION_1_8) {
+            throw undefWriteError(obj, elem, value);
+        }
+    }
+
     public static RuntimeException undefReadError(Object object, Object id) {
         return typeErrorById("msg.undef.prop.read", toString(object), toString(id));
     }
@@ -6051,9 +6056,12 @@ public class ScriptRuntime {
     static boolean isUnregisteredSymbol(Object obj) {
         if (obj instanceof NativeSymbol) {
             NativeSymbol ns = (NativeSymbol) obj;
-            return ns.isSymbol() && ns.getKind() != NativeSymbol.SymbolKind.REGISTERED;
+            return ns.isSymbol() && ns.getKind() != Symbol.Kind.REGISTERED;
+        } else if (obj instanceof Symbol) {
+            Symbol s = (Symbol) obj;
+            return s.getKind() != Symbol.Kind.REGISTERED;
         }
-        return (obj instanceof SymbolKey);
+        return false;
     }
 
     private static RuntimeException errorWithClassName(String msg, Object val) {
