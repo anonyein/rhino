@@ -4760,21 +4760,7 @@ public final class Interpreter extends Icode implements Evaluator {
 
     private static void enterFrame(
             Context cx, CallFrame frame, Object[] args, boolean continuationRestart) {
-        // HtmlUnit - enhanced Arguments support (see org.htmlunit.javascript.ArgumentsTest.argumentsCallee())
-        if (frame.parentFrame != null && !frame.parentFrame.fnOrScript.isScript()) {
-            frame.fnOrScript.defaultPut("caller", frame.parentFrame.fnOrScript);
-            frame.fnOrScript.setAttributes("caller", ScriptableObject.DONTENUM);
-        }
-        if (frame.scope instanceof NativeCall) {
-            Object arguments = ScriptableObject.getProperty(frame.scope, "arguments");
-            if (arguments instanceof Arguments) {
-                frame.fnOrScript.setArguments((Arguments) arguments);
-            }
-        }
-        // end HtmlUnit
-
         boolean usesActivation = frame.fnOrScript.getDescriptor().requiresActivationFrame();
-
         boolean isDebugged = frame.debuggerFrame != null;
         if (usesActivation || isDebugged) {
             Scriptable scope = frame.scope;
@@ -4820,9 +4806,6 @@ public final class Interpreter extends Icode implements Evaluator {
     }
 
     private static void exitFrame(Context cx, CallFrame frame, Object throwable) {
-        frame.fnOrScript.defaultPut("caller", null);
-        frame.fnOrScript.setArguments(null);
-
         if (frame.fnOrScript.getDescriptor().requiresActivationFrame()) {
             ScriptRuntime.exitActivationFunction(cx);
         }
