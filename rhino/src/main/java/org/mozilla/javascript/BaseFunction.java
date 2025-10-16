@@ -126,7 +126,6 @@ public class BaseFunction extends ScriptableObject implements Function {
         proto.setPrototype(functionProto);
 
         var iterator = (Scriptable) ScriptableObject.getProperty(scope, "Iterator");
-        var iteratorPrototype = ScriptableObject.getProperty(iterator, PROTOTYPE_PROPERTY_NAME);
         ScriptableObject.putProperty(
                 proto,
                 PROTOTYPE_PROPERTY_NAME,
@@ -558,12 +557,7 @@ public class BaseFunction extends ScriptableObject implements Function {
         }
 
         Scriptable result = createObject(cx, scope);
-        if (result != null) {
-            Object val = call(cx, scope, result, args);
-            if (val instanceof Scriptable) {
-                result = (Scriptable) val;
-            }
-        } else {
+        if (result == null) {
             Object val = call(cx, scope, null, args);
             if (!(val instanceof Scriptable)) {
                 // It is program error not to return Scriptable from
@@ -586,6 +580,11 @@ public class BaseFunction extends ScriptableObject implements Function {
                 if (result != parent) {
                     result.setParentScope(parent);
                 }
+            }
+        } else {
+            Object val = call(cx, scope, result, args);
+            if (val instanceof Scriptable) {
+                result = (Scriptable) val;
             }
         }
         return result;
