@@ -48,7 +48,7 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
 
     @Override
     public int getArity() {
-        return getParamCount();
+        return descriptor.getArity();
     }
 
     public DebuggableScript getDebuggableView() {
@@ -60,15 +60,20 @@ public class JSFunction extends BaseFunction implements ScriptOrFn<JSFunction> {
     }
 
     @Override
+    protected boolean hasPrototypeProperty() {
+        return true;
+    }
+
+    @Override
     public int getLength() {
-        int paramCount = getParamCount();
+        int arity = descriptor.getArity();
         if (getLanguageVersion() != Context.VERSION_1_2) {
-            return paramCount;
+            return arity;
         }
         Context cx = Context.getContext();
         NativeCall activation = ScriptRuntime.findFunctionActivation(cx, this);
         if (activation == null) {
-            return paramCount;
+            return arity;
         }
         return activation.originalArgs.length;
     }
