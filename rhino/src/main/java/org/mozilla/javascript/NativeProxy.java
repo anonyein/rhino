@@ -1316,6 +1316,11 @@ final class NativeProxy extends ScriptableObject implements Function {
     }
 
     @Override
+    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+        return null;
+    }
+
+    @Override
     public Scriptable getDeclarationScope() {
         ScriptableObject target = getTargetThrowIfRevoked();
         if (target instanceof Function) {
