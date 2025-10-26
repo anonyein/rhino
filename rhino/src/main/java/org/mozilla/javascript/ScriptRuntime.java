@@ -5039,7 +5039,6 @@ public class ScriptRuntime {
         NativeCall call = (NativeCall) scope;
         call.parentActivationCall = cx.currentActivationCall;
         cx.currentActivationCall = call;
-        call.defineAttributesForArguments();
     }
 
     public static void exitActivationFunction(Context cx) {
