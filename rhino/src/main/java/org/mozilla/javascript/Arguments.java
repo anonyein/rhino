@@ -87,19 +87,6 @@ class Arguments extends ScriptableObject {
         }
     }
 
-    public Arguments(final Arguments original) {
-        this.activation = original.activation;
-
-        setParentScope(original.getParentScope());
-        setPrototype(original.getPrototype());
-
-        args = original.args;
-        lengthObj = original.lengthObj;
-        calleeObj = original.calleeObj;
-
-        callerObj = original.callerObj;
-    }
-
     @Override
     public String getClassName() {
         return CLASS_NAME;
