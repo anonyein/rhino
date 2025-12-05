@@ -3802,6 +3802,9 @@ public final class Interpreter extends Icode implements Evaluator {
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
                 }
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
                 String stringReg =
@@ -3842,6 +3845,9 @@ public final class Interpreter extends Icode implements Evaluator {
                 // }
                 // HtmlUnit - HACK
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
                 String stringReg =
@@ -3868,6 +3874,9 @@ public final class Interpreter extends Icode implements Evaluator {
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
                 }
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
                 String stringReg =
@@ -3890,6 +3899,9 @@ public final class Interpreter extends Icode implements Evaluator {
                     varDbls[state.indexReg] = frame.sDbl[state.stackTop];
                 }
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 Object val = frame.stack[state.stackTop];
                 if (val == DOUBLE_MARK) val = ScriptRuntime.wrapNumber(frame.sDbl[state.stackTop]);
                 String stringReg =
@@ -3911,6 +3923,9 @@ public final class Interpreter extends Icode implements Evaluator {
                 frame.stack[state.stackTop] = vars[state.indexReg];
                 frame.sDbl[state.stackTop] = varDbls[state.indexReg];
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 String stringReg =
                         frame.fnOrScript.getDescriptor().getParamOrVarName(state.indexReg);
                 frame.stack[state.stackTop] = frame.scope.get(stringReg, frame.scope);
@@ -3929,6 +3944,9 @@ public final class Interpreter extends Icode implements Evaluator {
                 frame.stack[state.stackTop] = vars[state.indexReg];
                 frame.sDbl[state.stackTop] = varDbls[state.indexReg];
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 String stringReg =
                         frame.fnOrScript.getDescriptor().getParamOrVarName(state.indexReg);
                 frame.stack[state.stackTop] = frame.scope.get(stringReg, frame.scope);
@@ -4001,6 +4019,9 @@ public final class Interpreter extends Icode implements Evaluator {
                     }
                 }
             } else {
+                // This only occurs if we are using the debugger, in
+                // which case `frame.scope` will be an activation
+                // frame for this function.
                 String varName = frame.fnOrScript.getDescriptor().getParamOrVarName(state.indexReg);
                 frame.stack[state.stackTop] =
                         ScriptRuntime.nameIncrDecr(frame.scope, varName, cx, incrDecrMask);
