@@ -10,10 +10,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Callable;
-import java.util.function.Function;
-
-import javax.naming.Context;
 
 /**
  * This class implements the Proxy object.
