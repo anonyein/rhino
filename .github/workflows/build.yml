@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '17' ]
+        java: [ '21' ]
     name: Rhino Java ${{ matrix.java }}
     steps:
     - name: Check out Rhino
