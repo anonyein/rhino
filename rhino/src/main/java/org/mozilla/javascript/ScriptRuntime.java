@@ -216,7 +216,7 @@ public class ScriptRuntime {
         if (scope.getPrototype() == null) scope.setPrototype(objectPrototype);
 
         // must precede NativeGlobal since it's needed therein
-        NativeError.init(scope, sealed);
+        NativeError.init(cx, scope, sealed);
         NativeGlobal.init(cx, scope, sealed);
 
         NativeArray.init(cx, scope, sealed);
@@ -5369,6 +5369,12 @@ public class ScriptRuntime {
         scope = ScriptableObject.getTopLevelScope(scope);
         object.setParentScope(scope);
         object.setPrototype(TopLevel.getBuiltinPrototype(scope, type));
+    }
+
+    public static void setBuiltinProtoAndParent(
+            ScriptableObject obj, JSFunction f, Object nt, Scriptable s, TopLevel.Builtins type) {
+        obj.setPrototype((Scriptable) f.getPrototypeProperty());
+        obj.setParentScope(s);
     }
 
     public static void initFunction(
