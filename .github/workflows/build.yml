@@ -29,7 +29,7 @@ jobs:
       run: |
         ./gradlew clean
         ./gradlew --info --stacktrace --no-daemon :rhino-all:build
-        ./gradlew --info --stacktrace --no-daemon :rhino-all:sourcesJar
+        ./gradlew --info --stacktrace --no-daemon :rhino-all:sourceJar
         java -jar rhino-all/build/libs/rhino-*.jar
     - name: Upload results
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
