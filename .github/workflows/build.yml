@@ -30,7 +30,10 @@ jobs:
         ./gradlew clean
         ./gradlew --info --stacktrace --no-daemon :rhino-all:build
         ./gradlew --info --stacktrace --no-daemon :rhino-all:sourceJar
-        java -jar rhino-all/build/libs/rhino-*.jar
+    - name: Run Rhino
+      run: |
+        JAR_FILE=$(ls rhino-all/build/libs/rhino-*.jar | grep -v sources | head -1)
+        java -jar "$JAR_FILE"
     - name: Upload results
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
