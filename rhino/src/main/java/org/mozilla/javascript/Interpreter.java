@@ -3627,7 +3627,7 @@ public final class Interpreter extends Icode implements Evaluator {
             if (fun instanceof Function) {
                 stackTopOne = ((Function) fun).call(
                         cx,
-                        calleeScope,
+                        callerScope,
                         funThisObj,
                         stack[state.stackTop],
                         getArgsArray(
