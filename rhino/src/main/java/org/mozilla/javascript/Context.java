@@ -1642,6 +1642,10 @@ public class Context implements Closeable {
         return result;
     }
 
+    public VarScope newVarEnv(VarScope parent) {
+        return new DeclarationScope(parent);
+    }
+
     /**
      * Create a new JavaScript object by executing the named constructor.
      *

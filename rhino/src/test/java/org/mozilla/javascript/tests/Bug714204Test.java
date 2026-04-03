@@ -13,8 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EvaluatorException;
+import org.mozilla.javascript.ScopeObject;
 import org.mozilla.javascript.Script;
-import org.mozilla.javascript.ScriptableObject;
 
 /**
  * @author André Bargull
@@ -22,7 +22,7 @@ import org.mozilla.javascript.ScriptableObject;
 public class Bug714204Test {
 
     private Context cx;
-    private ScriptableObject scope;
+    private ScopeObject scope;
 
     @BeforeEach
     public void setUp() {

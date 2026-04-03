@@ -13,11 +13,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
-import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.ScopeObject;
 
 public class ObjectToStringNullUndefinedTest {
     private Context cx;
-    private ScriptableObject scope;
+    private ScopeObject scope;
 
     @BeforeEach
     public void setUp() {
