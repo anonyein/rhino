@@ -164,6 +164,7 @@ public class TopLevel extends ScopeObject {
     public static TopLevel createIsolateCustomPrototypeChain(
             TopLevel parent, ScriptableObject customGlobal) {
         customGlobal.setParentScope(null);
+        customGlobal.setPrototype(customGlobal.getPrototype());
         var isolate = new TopLevel(customGlobal);
         isolate.copyAssociatedValue(parent);
         isolate.copyBuiltins(parent, false);
