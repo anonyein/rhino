@@ -170,16 +170,6 @@ public class TopLevel extends ScopeObject {
         return isolate;
     }
 
-    public static TopLevel createIsolateWithCustomPrototype(
-            TopLevel parent, ScriptableObject customGlobal) {
-        customGlobal.setParentScope(null);
-        customGlobal.setPrototype(customGlobal.getPrototype());
-        var isolate = new TopLevel(customGlobal);
-        isolate.copyAssociatedValue(parent);
-        isolate.copyBuiltins(parent, false);
-        return isolate;
-    }
-
     @Override
     public String getClassName() {
         return "topLevel";
