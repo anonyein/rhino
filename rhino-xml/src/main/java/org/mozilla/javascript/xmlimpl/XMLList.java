@@ -33,14 +33,13 @@ class XMLList extends XMLObjectImpl implements Function {
     private static final SymbolKey LIB_KEY = new SymbolKey("__xml_lib__", REGULAR);
 
     static {
-        DESCRIPTOR =
-                XMLObjectImpl.populatePrototypeDescriptor(
-                                new ClassDescriptor.Builder(
-                                        "XMLList",
-                                        1,
-                                        XMLList::js_constructorCall,
-                                        XMLList::js_constructor))
-                        .build();
+        DESCRIPTOR = XMLObjectImpl.populatePrototypeDescriptor(
+                new ClassDescriptor.Builder(
+                        "XMLList",
+                        1,
+                        XMLList::js_constructorCall,
+                        XMLList::js_constructor))
+                .build();
     }
 
     public static void init(
@@ -90,7 +89,7 @@ class XMLList extends XMLObjectImpl implements Function {
         return _annos;
     }
 
-    //    TODO    Should be XMLObjectImpl, XMLName?
+    // TODO Should be XMLObjectImpl, XMLName?
     void setTargets(XMLObjectImpl object, XmlNode.QName property) {
         targetObject = object;
         targetProperty = property;
@@ -103,7 +102,8 @@ class XMLList extends XMLObjectImpl implements Function {
 
     @Override
     XML getXML() {
-        if (length() == 1) return getXmlFromAnnotation(0);
+        if (length() == 1)
+            return getXmlFromAnnotation(0);
         return null;
     }
 
@@ -133,7 +133,7 @@ class XMLList extends XMLObjectImpl implements Function {
 
     //
     //
-    //  methods overriding ScriptableObject
+    // methods overriding ScriptableObject
     //
     //
 
@@ -144,7 +144,7 @@ class XMLList extends XMLObjectImpl implements Function {
 
     //
     //
-    //  methods overriding IdScriptableObject
+    // methods overriding IdScriptableObject
     //
     //
 
@@ -207,10 +207,9 @@ class XMLList extends XMLObjectImpl implements Function {
                 }
 
                 // Now add us to our parent
-                XMLName name2 =
-                        XMLName.formProperty(
-                                targetProperty.getNamespace().getUri(),
-                                targetProperty.getLocalName());
+                XMLName name2 = XMLName.formProperty(
+                        targetProperty.getNamespace().getUri(),
+                        targetProperty.getLocalName());
                 targetObject.putXMLProperty(name2, this);
                 replace(0, targetObject.getXML().getLastXmlChild());
             } else {
@@ -256,11 +255,11 @@ class XMLList extends XMLObjectImpl implements Function {
             if (targetProperty == null) {
                 xmlValue = newXMLFromJs(value.toString());
             } else {
-                //    Note that later in the code, we will use this as an argument to
+                // Note that later in the code, we will use this as an argument to
                 // replace(int,value)
-                //    So we will be "replacing" this element with itself
-                //    There may well be a better way to do this
-                //    TODO    Find a way to refactor this whole method and simplify it
+                // So we will be "replacing" this element with itself
+                // There may well be a better way to do this
+                // TODO Find a way to refactor this whole method and simplify it
                 xmlValue = item(index);
                 if (xmlValue == null) {
                     XML x = item(0);
@@ -391,7 +390,8 @@ class XMLList extends XMLObjectImpl implements Function {
         return getIds();
     }
 
-    // XMLList will remove will delete all items in the list (a set delete) this differs from the
+    // XMLList will remove will delete all items in the list (a set delete) this
+    // differs from the
     // XMLList delete operator.
     void remove() {
         int nLen = length();
@@ -596,25 +596,28 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     /**
-     * If list is empty, return undefined, if elements have different parents return undefined, If
+     * If list is empty, return undefined, if elements have different parents return
+     * undefined, If
      * they all have the same parent, return that parent
      */
     @Override
     Object parent() {
-        if (length() == 0) return Undefined.instance;
+        if (length() == 0)
+            return Undefined.instance;
 
         XML candidateParent = null;
 
         for (int i = 0; i < length(); i++) {
             Object currParent = getXmlFromAnnotation(i).parent();
-            if (!(currParent instanceof XML)) return Undefined.instance;
+            if (!(currParent instanceof XML))
+                return Undefined.instance;
             XML xml = (XML) currParent;
             if (i == 0) {
                 // Set the first for the rest to compare to.
                 candidateParent = xml;
             } else {
                 if (candidateParent.is(xml)) {
-                    //    keep looking
+                    // keep looking
                 } else {
                     return Undefined.instance;
                 }
@@ -671,14 +674,14 @@ class XMLList extends XMLObjectImpl implements Function {
 
     @Override
     public String toString() {
-        //    ECMA357 10.1.2
+        // ECMA357 10.1.2
         if (hasSimpleContent()) {
             StringBuilder sb = new StringBuilder();
 
             for (int i = 0; i < length(); i++) {
                 XML next = getXmlFromAnnotation(i);
                 if (next.isComment() || next.isProcessingInstruction()) {
-                    //    do nothing
+                    // do nothing
                 } else {
                     sb.append(next.toString());
                 }
@@ -697,7 +700,7 @@ class XMLList extends XMLObjectImpl implements Function {
 
     @Override
     String toXMLString() {
-        //    See ECMA 10.2.1
+        // See ECMA 10.2.1
         StringBuilder sb = new StringBuilder();
 
         for (int i = 0; i < length(); i++) {
@@ -797,10 +800,11 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         // This XMLList is being called as a Function.
         // Let's find the real Function object.
-        if (targetProperty == null) throw ScriptRuntime.notFunctionError(this);
+        if (targetProperty == null)
+            throw ScriptRuntime.notFunctionError(this);
 
         String methodName = targetProperty.getLocalName();
 
@@ -836,12 +840,11 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
         return null;
     }
 
-    @Override
-    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
         throw ScriptRuntime.typeErrorById("msg.not.ctor", "XMLList");
     }
 }

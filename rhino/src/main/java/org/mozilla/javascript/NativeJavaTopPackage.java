@@ -7,9 +7,12 @@
 package org.mozilla.javascript;
 
 /**
- * This class reflects Java packages into the JavaScript environment. We lazily reflect classes and
- * subpackages, and use a caching/sharing system to ensure that members reflected into one
- * JavaPackage appear in all other references to the same package (as with Packages.java.lang and
+ * This class reflects Java packages into the JavaScript environment. We lazily
+ * reflect classes and
+ * subpackages, and use a caching/sharing system to ensure that members
+ * reflected into one
+ * JavaPackage appear in all other references to the same package (as with
+ * Packages.java.lang and
  * java.lang).
  *
  * @author Mike Shaver
@@ -23,14 +26,14 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
     // we know these are packages so we can skip the class check
     // note that this is ok even if the package isn't present.
     private static final String[][] commonPackages = {
-        {"java", "lang", "reflect"},
-        {"java", "io"},
-        {"java", "math"},
-        {"java", "net"},
-        {"java", "util", "zip"},
-        {"java", "text", "resources"},
-        {"java", "applet"},
-        {"javax", "swing"}
+            { "java", "lang", "reflect" },
+            { "java", "io" },
+            { "java", "math" },
+            { "java", "net" },
+            { "java", "util", "zip" },
+            { "java", "text", "resources" },
+            { "java", "applet" },
+            { "javax", "swing" }
     };
 
     NativeJavaTopPackage(ClassLoader loader) {
@@ -38,17 +41,17 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         return construct(cx, scope, args);
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
         return null;
     }
 
     @Override
-    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
         ClassLoader loader = null;
         if (args.length != 0) {
             Object arg = args[0];
@@ -82,8 +85,7 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
         }
 
         // getClass implementation
-        IdFunctionObject getClass =
-                new IdFunctionObject(top, FTAG, Id_getClass, "getClass", 1, scope);
+        IdFunctionObject getClass = new IdFunctionObject(top, FTAG, Id_getClass, "getClass", 1, scope);
 
         // We want to get a real alias, and not a distinct JavaPackage
         // with the same packageName, so that we share classes and top
@@ -110,7 +112,7 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
 
     @Override
     public Object execIdCall(
-            IdFunctionObject f, Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            IdFunctionObject f, Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         if (f.hasTag(FTAG)) {
             if (f.methodId() == Id_getClass) {
                 return js_getClass(cx, scope, args);
@@ -127,14 +129,15 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
             // the string to find the appropriate NativeJavaClass object
             String name = cl.getName();
             int offset = 0;
-            for (; ; ) {
+            for (;;) {
                 int index = name.indexOf('.', offset);
-                String propName =
-                        index == -1 ? name.substring(offset) : name.substring(offset, index);
+                String propName = index == -1 ? name.substring(offset) : name.substring(offset, index);
                 Object prop = result.get(propName, result);
-                if (!(prop instanceof Scriptable)) break; // fall through to error
+                if (!(prop instanceof Scriptable))
+                    break; // fall through to error
                 result = (Scriptable) prop;
-                if (index == -1) return result;
+                if (index == -1)
+                    return result;
                 offset = index + 1;
             }
         }

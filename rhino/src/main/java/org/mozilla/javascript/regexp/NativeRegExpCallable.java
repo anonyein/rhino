@@ -3,9 +3,11 @@ package org.mozilla.javascript.regexp;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.VarScope;
 
 /**
- * Legacy implementation of RegExp was callable, this class exists to preserve this functionality
+ * Legacy implementation of RegExp was callable, this class exists to preserve
+ * this functionality
  */
 class NativeRegExpCallable extends NativeRegExp implements Function {
 
@@ -18,17 +20,16 @@ class NativeRegExpCallable extends NativeRegExp implements Function {
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
         return execSub(cx, scope, args, MATCH);
     }
 
     @Override
-    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
         return null;
     }
 
-    @Override
-    public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
         return (Scriptable) execSub(cx, scope, args, MATCH);
     }
 }
