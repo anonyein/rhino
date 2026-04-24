@@ -12,8 +12,6 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.MathContext;
-import java.sql.Ref;
-import java.sql.Wrapper;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -22,13 +20,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.ServiceLoader;
-import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
-
-import javax.naming.Context;
-
 import org.mozilla.javascript.ast.FunctionNode;
 import org.mozilla.javascript.dtoa.DoubleFormatter;
 import org.mozilla.javascript.lc.type.TypeInfo;
