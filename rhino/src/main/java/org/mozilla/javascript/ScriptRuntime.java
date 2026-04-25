@@ -3493,7 +3493,7 @@ public class ScriptRuntime {
             if (thisObj.getParentScope() == null && NativeGlobal.isEvalFunction(fun)) {
                 // HtmlUnit hack for indirect eval() calls
                 if (!lastEvalTopCalled_) {
-                    scope = thisObj;
+                    scope = (VarScope) thisObj;
                 }
                 // end HtmlUnit
                 return evalSpecial(cx, (VarScope) scope, callerThis, args, filename, lineNumber);
