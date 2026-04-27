@@ -43,7 +43,7 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     public static void init(
-            Context cx, Scriptable scope, XMLObjectImpl proto, boolean sealdd, XMLLibImpl lib) {
+            Context cx, VarScope scope, XMLObjectImpl proto, boolean sealdd, XMLLibImpl lib) {
         DESCRIPTOR.buildConstructor(
                 cx,
                 (VarScope) scope,
