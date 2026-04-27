@@ -48,7 +48,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     protected void initMembers() {
         Class<?> cl = (Class<?>) javaObject;
         members = JavaMembers.lookupClass(parent, cl, cl, isAdapter);
-        staticFieldAndMethods = members.getFieldAndMethodsObjects(this, cl, true);
+        staticFieldAndMethods = members.getFieldAndMethodsObjects(parent, cl, true);
     }
 
     @Override
@@ -80,7 +80,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
         }
 
         Context cx = Context.getContext();
-        VarScope scope = ScriptableObject.getTopLevelScope(start);
+        VarScope scope = ScriptableObject.getTopLevelScope(parent);
         WrapFactory wrapFactory = cx.getWrapFactory();
 
         if (javaClassPropertyName.equals(name)) {
@@ -101,7 +101,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
 
     @Override
     public void put(String name, Scriptable start, Object value) {
-        members.put(this, name, javaObject, value, true);
+        members.put(this, parent, name, javaObject, value, true);
     }
 
     @Override
@@ -168,7 +168,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
         if (args.length == 0) {
             throw Context.reportRuntimeErrorById("msg.adapter.zero.args");
         }
-        VarScope topLevel = ScriptableObject.getTopLevelScope(this);
+        VarScope topLevel = ScriptableObject.getTopLevelScope(parent);
         String msg = "";
         try {
             // When running on Android create an InterfaceAdapter since our
