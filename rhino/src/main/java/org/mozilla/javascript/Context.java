@@ -578,7 +578,7 @@ public class Context implements Closeable {
     }
 
     /**
-     * Call {@link Callable#call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args)}
+     * Call {@link Callable#call(Context cx, VarScope scope, Scriptable thisObj, Object[] args)}
      * using the Context instance associated with the current thread. If no Context is associated
      * with the thread, then {@link ContextFactory#makeContext()} will be called to construct new
      * Context instance. The instance will be temporary associated with the thread during call to
@@ -1792,7 +1792,7 @@ public class Context implements Closeable {
 
     /**
      * @deprecated
-     * @see #toObject(Object, Scriptable)
+     * @see #toObject(Object, VarScope)
      */
     @Deprecated
     public static Scriptable toObject(Object value, VarScope scope, Class<?> staticType) {
@@ -1814,7 +1814,7 @@ public class Context implements Closeable {
      * JavaScript type will be string.
      *
      * <p>The rest of values will be wrapped as LiveConnect objects by calling {@link
-     * WrapFactory#wrap(Context cx, Scriptable scope, Object obj, Class staticType)} as in:
+     * WrapFactory#wrap(Context cx, VarScope scope, Object obj, Class staticType)} as in:
      *
      * <pre>
      *    Context cx = Context.getCurrentContext();
@@ -1844,7 +1844,7 @@ public class Context implements Closeable {
      * JavaScript type will be string.
      *
      * <p>The rest of values will be wrapped as LiveConnect objects by calling {@link
-     * WrapFactory#wrap(Context cx, Scriptable scope, Object obj, Class staticType)} as in:
+     * WrapFactory#wrap(Context cx, VarScope scope, Object obj, Class staticType)} as in:
      *
      * <pre>
      *    return cx.getWrapFactory().wrap(cx, scope, value, null);
@@ -2248,7 +2248,7 @@ public class Context implements Closeable {
 
     /**
      * @deprecated
-     * @see ClassCache#get(Scriptable)
+     * @see ClassCache#get(VarScope)
      * @see ClassCache#setCachingEnabled(boolean)
      */
     @Deprecated
