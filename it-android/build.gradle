@@ -46,7 +46,7 @@ if (!System.getenv("ANDROID_HOME") && !localProperties.get("sdk.dir")) {
             minSdk = 26
             targetSdk = 33
             testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
+            android.enableGlobalSynthetics = true
         }
         compileOptions {
             coreLibraryDesugaringEnabled true
