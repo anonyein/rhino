@@ -8,6 +8,7 @@ package org.mozilla.javascript;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -31,7 +32,31 @@ public class ClassCache implements Serializable {
      * CacheKey is a combination of class and securityContext. This is required when classes are
      * loaded from different security contexts
      */
-    record CacheKey(Class<?> cls, Object sec) {}
+    static class CacheKey {
+        final Class<?> cls;
+        final Object sec;
+
+        /** Constructor. */
+        public CacheKey(Class<?> cls, Object securityContext) {
+            this.cls = cls;
+            this.sec = securityContext;
+        }
+
+        @Override
+        public int hashCode() {
+            if (sec != null) {
+                return sec.hashCode() ^ cls.hashCode();
+            }
+            return cls.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return (obj instanceof CacheKey)
+                    && Objects.equals(this.cls, ((CacheKey) obj).cls)
+                    && Objects.equals(this.sec, ((CacheKey) obj).sec);
+        }
+    }
 
     /**
      * Search for ClassCache object in the given scope. The method first calls {@link
