@@ -53,7 +53,7 @@ if (!System.getenv("ANDROID_HOME") && !localProperties.get("sdk.dir")) {
             sourceCompatibility JavaVersion.VERSION_11
             targetCompatibility JavaVersion.VERSION_11
         }
-        android.experimental.enableGlobalSynthetics = true
+        experimentalProperties["android.experimental.enableGlobalSynthetics"] = true
     }
 
     dependencies {
