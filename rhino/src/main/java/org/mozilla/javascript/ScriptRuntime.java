@@ -3483,11 +3483,6 @@ public class ScriptRuntime {
 
         if (callType == Node.SPECIALCALL_EVAL) {
             if (thisObj.getParentScope() == null && NativeGlobal.isEvalFunction(fun)) {
-                // HtmlUnit hack for indirect eval() calls
-                if (!lastEvalTopCalled_) {
-                    scope = (VarScope) thisObj;
-                }
-                // end HtmlUnit
                 return evalSpecial(cx, scope, callerThis, args, filename, lineNumber);
             }
         } else {
