@@ -1,6 +1,7 @@
 package org.mozilla.javascript;
 
 import java.io.Serial;
+import java.io.Serializable;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
 
 /**
