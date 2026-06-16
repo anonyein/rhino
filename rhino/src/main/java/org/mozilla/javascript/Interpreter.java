@@ -3633,13 +3633,13 @@ public final class Interpreter implements Evaluator {
                         cx,
                         callerScope,
                         funThisObj,
-                        stack[state.stackTop],
+                        stack[frame.stackTop],
                         getArgsArray(
                                 stack, 
                                 sDbl, 
                                 boundArgs, 
                                 blen, 
-                                state.stackTop + 1, 
+                                frame.stackTop + 1, 
                                 state.indexReg));
             }
             if (null == stackTopOne)
