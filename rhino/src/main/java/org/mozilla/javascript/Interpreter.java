@@ -3899,9 +3899,9 @@ public final class Interpreter implements Evaluator {
             // HtmlUnit - HACK
             // if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
             // HtmlUnit - HACK
-            vars[state.indexReg] = frame.stack[state.stackTop];
+            vars[state.indexReg] = frame.stack[frame.stackTop];
             varAttributes[state.indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
-            varDbls[state.indexReg] = frame.sDbl[state.stackTop];
+            varDbls[state.indexReg] = frame.sDbl[frame.stackTop];
             // HtmlUnit - HACK
             // }
             // HtmlUnit - HACK
