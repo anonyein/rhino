@@ -3626,7 +3626,6 @@ public final class Interpreter implements Evaluator {
             }
 
             frame.savedCallOp = op;
-            frame.savedStackTop = state.stackTop;
             Object stackTopOne = null;
             if (fun instanceof Function) {
                 stackTopOne = ((Function) fun).call(
