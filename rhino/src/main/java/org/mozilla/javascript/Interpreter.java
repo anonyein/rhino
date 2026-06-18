@@ -3440,7 +3440,6 @@ public final class Interpreter implements Evaluator {
                         "msg.var.redecl",
                         frame.fnOrScript.getDescriptor().getParamOrVarName(state.indexReg));
             }
-<<<<<<< HEAD
 
             // HtmlUnit - HACK
             // disable this to allow const updates in loops
@@ -3455,13 +3454,6 @@ public final class Interpreter implements Evaluator {
             // HtmlUnit - HACK
             // }
             // HtmlUnit - HACK
-=======
-            if ((varAttributes[state.indexReg] & ScriptableObject.UNINITIALIZED_CONST) != 0) {
-                vars[state.indexReg] = frame.stack[frame.stackTop];
-                varAttributes[state.indexReg] &= ~ScriptableObject.UNINITIALIZED_CONST;
-                varDbls[state.indexReg] = frame.doubleStack[frame.stackTop];
-            }
->>>>>>> origin/origin
             return null;
         }
     }
