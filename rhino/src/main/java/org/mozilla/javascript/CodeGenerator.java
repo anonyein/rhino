@@ -187,16 +187,16 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
                 itsData.itsBigIntTable[index] = bigInt;
             }
         }
-        if (exceptionTableTop != 0 && itsData.itsExceptionTable.length != exceptionTableTop) {
+        if (exceptionTableTop != 0 && itsData.exceptionTable.length != exceptionTableTop) {
             int[] tmp = new int[exceptionTableTop];
-            System.arraycopy(itsData.itsExceptionTable, 0, tmp, 0, exceptionTableTop);
-            itsData.itsExceptionTable = tmp;
+            System.arraycopy(itsData.exceptionTable, 0, tmp, 0, exceptionTableTop);
+            itsData.exceptionTable = tmp;
         }
 
-        itsData.itsMaxVars = scriptOrFn.getParamAndVarCount();
-        // itsMaxFrameArray: interpret method needs this amount for its
+        itsData.maxVars = scriptOrFn.getParamAndVarCount();
+        // maxFrameArray: interpret method needs this amount for its
         // stack and sDbl arrays
-        itsData.itsMaxFrameArray = itsData.itsMaxVars + itsData.itsMaxLocals + itsData.itsMaxStack;
+        itsData.maxFrameArray = itsData.maxVars + itsData.maxLocals + itsData.maxStack;
 
         if (literalIds.size() != 0) {
             itsData.literalIds = literalIds.toArray();
@@ -706,8 +706,8 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
                         // ref_call: f, thisObj, args -> ref
                         stackChange(-1 - argCount);
                     }
-                    if (argCount > itsData.itsMaxCalleeArgs) {
-                        itsData.itsMaxCalleeArgs = argCount;
+                    if (argCount > itsData.maxCalleeArgs) {
+                        itsData.maxCalleeArgs = argCount;
                     }
 
                     if (completeOptionalCallJump != null) {
@@ -1955,15 +1955,15 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
             int exceptionObjectLocal,
             int scopeLocal) {
         int top = exceptionTableTop;
-        int[] table = itsData.itsExceptionTable;
+        int[] table = itsData.exceptionTable;
         if (table == null) {
             if (top != 0) Kit.codeBug();
             table = new int[Interpreter.EXCEPTION_SLOT_SIZE * 2];
-            itsData.itsExceptionTable = table;
+            itsData.exceptionTable = table;
         } else if (table.length == top) {
             table = new int[table.length * 2];
-            System.arraycopy(itsData.itsExceptionTable, 0, table, 0, top);
-            itsData.itsExceptionTable = table;
+            System.arraycopy(itsData.exceptionTable, 0, table, 0, top);
+            itsData.exceptionTable = table;
         }
         table[top + Interpreter.EXCEPTION_TRY_START_SLOT] = icodeStart;
         table[top + Interpreter.EXCEPTION_TRY_END_SLOT] = icodeEnd;
@@ -1994,8 +1994,8 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
             stackDepth += change;
         } else {
             int newDepth = stackDepth + change;
-            if (newDepth > itsData.itsMaxStack) {
-                itsData.itsMaxStack = newDepth;
+            if (newDepth > itsData.maxStack) {
+                itsData.maxStack = newDepth;
             }
             stackDepth = newDepth;
         }
@@ -2004,8 +2004,8 @@ class CodeGenerator<T extends ScriptOrFn<T>> {
     private int allocLocal() {
         int localSlot = localTop;
         ++localTop;
-        if (localTop > itsData.itsMaxLocals) {
-            itsData.itsMaxLocals = localTop;
+        if (localTop > itsData.maxLocals) {
+            itsData.maxLocals = localTop;
         }
         return localSlot;
     }

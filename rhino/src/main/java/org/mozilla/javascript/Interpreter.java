@@ -314,7 +314,7 @@ public final class Interpreter implements Evaluator {
     }
 
     private static int getExceptionHandler(CallFrame frame, boolean onlyFinally) {
-        int[] exceptionTable = frame.compilerData.itsExceptionTable;
+        int[] exceptionTable = frame.compilerData.exceptionTable;
         if (exceptionTable == null) {
             // No exception handlers
             return -1;
@@ -366,7 +366,7 @@ public final class Interpreter implements Evaluator {
         int iCodeLength = iCode.length;
         PrintStream out = interpreterBytecodePrintStream;
         out.println("ICode dump, for " + desc.name + ", length = " + iCodeLength);
-        out.println("MaxStack = " + compilerData.itsMaxStack);
+        out.println("MaxStack = " + compilerData.maxStack);
 
         ICodeDumpContext ctx = new ICodeDumpContext(out, compilerData);
 
@@ -383,7 +383,7 @@ public final class Interpreter implements Evaluator {
             pc += icodeLength;
         }
 
-        int[] table = compilerData.itsExceptionTable;
+        int[] table = compilerData.exceptionTable;
         if (table != null) {
             out.println("Exception handlers: " + table.length / EXCEPTION_SLOT_SIZE);
             for (int i = 0; i != table.length; i += EXCEPTION_SLOT_SIZE) {
@@ -1638,7 +1638,7 @@ public final class Interpreter implements Evaluator {
     private static class DoRethrow extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             state.throwable = frame.stack[state.indexReg];
             return BREAK_WITHOUT_EXTENSION;
         }
@@ -1951,7 +1951,7 @@ public final class Interpreter implements Evaluator {
             final InterpreterData compilerData = frame.compilerData;
             if (frame.stackTop == frame.emptyStackTop + 1) {
                 // Call from Icode.GOSUB: store return PC address in the local
-                state.indexReg += compilerData.itsMaxVars;
+                state.indexReg += compilerData.maxVars;
                 stack[state.indexReg] = stack[frame.stackTop];
                 sDbl[state.indexReg] = sDbl[frame.stackTop];
                 --frame.stackTop;
@@ -1972,7 +1972,7 @@ public final class Interpreter implements Evaluator {
             if (state.instructionCounting) {
                 addInstructionCount(cx, frame, 0);
             }
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             Object value = frame.stack[state.indexReg];
             if (value != DOUBLE_MARK) {
                 // Invocation from exception handler, restore object to
@@ -2750,7 +2750,7 @@ public final class Interpreter implements Evaluator {
             final double[] sDbl = frame.doubleStack;
             final InterpreterData compilerData = frame.compilerData;
             ++frame.stackTop;
-            state.indexReg += compilerData.itsMaxVars;
+            state.indexReg += compilerData.maxVars;
             stack[frame.stackTop] = stack[state.indexReg];
             sDbl[frame.stackTop] = sDbl[state.indexReg];
             return null;
@@ -2762,7 +2762,7 @@ public final class Interpreter implements Evaluator {
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
             final Object[] stack = frame.stack;
             final InterpreterData compilerData = frame.compilerData;
-            state.indexReg += compilerData.itsMaxVars;
+            state.indexReg += compilerData.maxVars;
             stack[state.indexReg] = null;
             return null;
         }
@@ -3716,7 +3716,7 @@ public final class Interpreter implements Evaluator {
             // state.stringReg: name of exception variable
             // state.indexReg: local for exception scope
             --frame.stackTop;
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
 
             boolean afterFirstScope = (frame.compilerData.itsICode[frame.pc] != 0);
             Throwable caughtException = (Throwable) frame.stack[frame.stackTop + 1];
@@ -3747,7 +3747,7 @@ public final class Interpreter implements Evaluator {
             Object lhs = frame.stack[frame.stackTop];
             if (lhs == DOUBLE_MARK)
                 lhs = ScriptRuntime.wrapNumber(frame.doubleStack[frame.stackTop]);
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             int enumType =
                     op == Token.ENUM_INIT_KEYS
                             ? cx.getLanguageVersion() <= Context.VERSION_1_8
@@ -3767,7 +3767,7 @@ public final class Interpreter implements Evaluator {
     private static class DoEnumOp extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             Object val = frame.stack[state.indexReg];
             frame.stack[++frame.stackTop] =
                     (op == Token.ENUM_NEXT)
@@ -3855,7 +3855,7 @@ public final class Interpreter implements Evaluator {
     private static class DoScopeLoad extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             frame.scope = (VarScope) frame.stack[state.indexReg];
             return null;
         }
@@ -3864,7 +3864,7 @@ public final class Interpreter implements Evaluator {
     private static class DoScopeSave extends InstructionClass {
         @Override
         NewState execute(Context cx, CallFrame frame, InterpreterState state, int op) {
-            state.indexReg += frame.compilerData.itsMaxVars;
+            state.indexReg += frame.compilerData.maxVars;
             frame.stack[state.indexReg] = frame.scope;
             return null;
         }
@@ -4516,7 +4516,7 @@ public final class Interpreter implements Evaluator {
                 frame = frame.cloneFrozen();
             }
 
-            int[] table = frame.compilerData.itsExceptionTable;
+            int[] table = frame.compilerData.exceptionTable;
 
             frame.stackTop = frame.emptyStackTop;
 
@@ -4525,7 +4525,7 @@ public final class Interpreter implements Evaluator {
                 frame.pcPrevBranch = frame.pc;
             }
 
-            int localShift = frame.compilerData.itsMaxVars;
+            int localShift = frame.compilerData.maxVars;
             int scopeLocal = localShift + table[indexReg + EXCEPTION_SCOPE_SLOT];
             int exLocal = localShift + table[indexReg + EXCEPTION_LOCAL_SLOT];
             frame.scope = (VarScope) frame.stack[scopeLocal];
