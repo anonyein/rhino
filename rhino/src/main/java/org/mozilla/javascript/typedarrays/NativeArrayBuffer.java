@@ -61,6 +61,8 @@ public class NativeArrayBuffer extends ScriptableObject {
                         .withProp(
                                 PROTO, "resizable", NativeArrayBuffer::js_resizable, null, DONTENUM)
                         .withProp(
+                                PROTO, "bytes", NativeArrayBuffer::js_bytes, null, DONTENUM)
+                        .withProp(
                                 PROTO,
                                 "maxByteLength",
                                 NativeArrayBuffer::js_maxByteLength,
@@ -355,6 +357,13 @@ public class NativeArrayBuffer extends ScriptableObject {
         NativeArrayBuffer self = getSelf(thisObj);
         // A buffer is resizable if maxByteLength was specified in constructor
         return self.isResizable();
+    }
+
+    // Export bytes
+    private static Object js_bytes(Scriptable thisObj) {
+        NativeArrayBuffer self = getSelf(thisObj);
+        // A buffer is resizable if maxByteLength was specified in constructor
+        return self.getBuffer();
     }
 
     // ES2024 ArrayBuffer.prototype.maxByteLength getter
