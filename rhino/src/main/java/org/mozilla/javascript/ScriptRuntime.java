@@ -3609,7 +3609,7 @@ public class ScriptRuntime {
         if (arg1 == null || Undefined.isUndefined(arg1) || arg1 == ScriptRuntime.emptyArgs) {
             return ScriptRuntime.emptyArgs;
         } else if (arg1 instanceof Scriptable && isArrayLike((Scriptable) arg1)) {
-            return cx.getElements((Scriptable) arg1);
+            return ScriptRuntime.getArrayElements(cx, (Scriptable) arg1);
         } else if (arg1 instanceof ScriptableObject) {
             return ScriptRuntime.emptyArgs;
         } else {
@@ -5662,8 +5662,7 @@ public class ScriptRuntime {
         return obj instanceof NativeArray || obj instanceof Arguments;
     }
 
-    public static Object[] getArrayElements(Scriptable object) {
-        Context cx = Context.getContext();
+    public static Object[] getArrayElements(Context cx, Scriptable object) {
         long longLen = NativeArray.getLengthProperty(cx, object);
         if (longLen > Integer.MAX_VALUE) {
             // arrays beyond  MAX_INT is not in Java in any case
