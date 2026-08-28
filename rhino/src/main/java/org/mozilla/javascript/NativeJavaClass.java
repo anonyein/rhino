@@ -29,7 +29,8 @@ import org.mozilla.javascript.lc.type.TypeInfo;
  * @see NativeJavaPackage
  */
 public class NativeJavaClass extends NativeJavaObject implements Function {
-    @Serial private static final long serialVersionUID = -6460763940409461664L;
+    @Serial
+    private static final long serialVersionUID = -6460763940409461664L;
 
     // Special property for getting the underlying Java class object.
     static final String javaClassPropertyName = "__javaObject__";
@@ -146,7 +147,7 @@ public class NativeJavaClass extends NativeJavaObject implements Function {
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 

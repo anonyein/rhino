@@ -44,7 +44,7 @@ public interface Function extends Scriptable, Callable, Constructable {
      * @param args the array of arguments
      * @return the result of the call
      */
-    Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args);
+    Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args);
 
     /**
      * Call the function as a constructor.

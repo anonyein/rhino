@@ -9,11 +9,16 @@
 package org.mozilla.javascript;
 
 /**
- * This is a helper class for implementing wrappers around Scriptable objects. It implements the
- * Function interface and delegates all invocations to a delegee Scriptable object. The normal use
- * of this class involves creating a sub-class and overriding one or more of the methods.
+ * This is a helper class for implementing wrappers around Scriptable objects.
+ * It implements the
+ * Function interface and delegates all invocations to a delegee Scriptable
+ * object. The normal use
+ * of this class involves creating a sub-class and overriding one or more of the
+ * methods.
  *
- * <p>A useful application is the implementation of interceptors, pre/post conditions, debugging.
+ * <p>
+ * A useful application is the implementation of interceptors, pre/post
+ * conditions, debugging.
  *
  * @see Function
  * @see Scriptable
@@ -26,11 +31,14 @@ public class Delegator implements Function, SymbolScriptable {
     /**
      * Create a Delegator prototype.
      *
-     * <p>This constructor should only be used for creating prototype objects of Delegator.
+     * <p>
+     * This constructor should only be used for creating prototype objects of
+     * Delegator.
      *
      * @see org.mozilla.javascript.Delegator#construct
      */
-    public Delegator() {}
+    public Delegator() {
+    }
 
     /**
      * Create a new Delegator that forwards requests to a delegee Scriptable object.
@@ -43,7 +51,8 @@ public class Delegator implements Function, SymbolScriptable {
     }
 
     /**
-     * Crete new Delegator instance. The default implementation calls this.getClass().newInstance().
+     * Crete new Delegator instance. The default implementation calls
+     * this.getClass().newInstance().
      *
      * @see #construct(Context cx, VarScope scope, Object[] args)
      */
@@ -224,8 +233,10 @@ public class Delegator implements Function, SymbolScriptable {
     }
 
     /**
-     * Note that this method does not get forwarded to the delegee if the {@code hint} parameter is
-     * null, {@code ScriptRuntime.ScriptableClass} or {@code ScriptRuntime.FunctionClass}. Instead
+     * Note that this method does not get forwarded to the delegee if the
+     * {@code hint} parameter is
+     * null, {@code ScriptRuntime.ScriptableClass} or
+     * {@code ScriptRuntime.FunctionClass}. Instead
      * the object itself is returned.
      *
      * @param hint the type hint
@@ -235,10 +246,10 @@ public class Delegator implements Function, SymbolScriptable {
     @Override
     public Object getDefaultValue(Class<?> hint) {
         return (hint == null
-                        || hint == ScriptRuntime.ScriptableClass
-                        || hint == ScriptRuntime.FunctionClass)
-                ? this
-                : getDelegee().getDefaultValue(hint);
+                || hint == ScriptRuntime.ScriptableClass
+                || hint == ScriptRuntime.FunctionClass)
+                        ? this
+                        : getDelegee().getDefaultValue(hint);
     }
 
     /**
@@ -258,19 +269,22 @@ public class Delegator implements Function, SymbolScriptable {
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 
     /**
-     * Note that if the {@code delegee} is {@code null}, this method creates a new instance of the
-     * Delegator itself rather than forwarding the call to the {@code delegee} . This permits the
+     * Note that if the {@code delegee} is {@code null}, this method creates a new
+     * instance of the
+     * Delegator itself rather than forwarding the call to the {@code delegee} .
+     * This permits the
      * use of Delegator prototypes.
      *
-     * @param cx the current Context for this thread
-     * @param scope an enclosing scope of the caller except when the function is called from a
-     *     closure.
-     * @param args the array of arguments
+     * @param cx    the current Context for this thread
+     * @param scope an enclosing scope of the caller except when the function is
+     *              called from a
+     *              closure.
+     * @param args  the array of arguments
      * @return the allocated object
      * @see Constructable#construct(Context, VarScope, Object[])
      */

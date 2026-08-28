@@ -23,7 +23,8 @@ import java.io.Serial;
  * @see NativeJavaClass
  */
 public class NativeJavaTopPackage extends NativeJavaPackage implements Function, IdFunctionCall {
-    @Serial private static final long serialVersionUID = -1455787259477709999L;
+    @Serial
+    private static final long serialVersionUID = -1455787259477709999L;
 
     // we know these are packages so we can skip the class check
     // note that this is ok even if the package isn't present.
@@ -48,7 +49,7 @@ public class NativeJavaTopPackage extends NativeJavaPackage implements Function,
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 

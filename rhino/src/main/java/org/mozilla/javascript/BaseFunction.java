@@ -15,21 +15,24 @@ import java.util.EnumSet;
 import org.mozilla.javascript.xml.XMLObject;
 
 /**
- * The base class for Function objects. That is one of two purposes. It is also the prototype for
- * every "function" defined except those that are used as GeneratorFunctions via the ES6 "function
+ * The base class for Function objects. That is one of two purposes. It is also
+ * the prototype for
+ * every "function" defined except those that are used as GeneratorFunctions via
+ * the ES6 "function
  * *" syntax.
  *
- * <p>See ECMA 15.3.
+ * <p>
+ * See ECMA 15.3.
  *
  * @author Norris Boyd
  */
 public class BaseFunction extends ScriptableObject implements Function {
-    @Serial private static final long serialVersionUID = 5311394446546053859L;
+    @Serial
+    private static final long serialVersionUID = 5311394446546053859L;
 
     private static final Object FUNCTION_TAG = "Function";
     private static final String FUNCTION_CLASS = "Function";
-    static final SymbolKey GENERATOR_FUNCTION_CLASS =
-            new SymbolKey("GeneratorFunctionPrototype", REGULAR);
+    static final SymbolKey GENERATOR_FUNCTION_CLASS = new SymbolKey("GeneratorFunctionPrototype", REGULAR);
 
     private static final String APPLY_TAG = "APPLY_TAG";
     private static final String CALL_TAG = "CALL_TAG";
@@ -41,91 +44,81 @@ public class BaseFunction extends ScriptableObject implements Function {
     private static final JSDescriptor<JSFunction> APPLY_DESCRIPTOR;
     private static final JSDescriptor<JSFunction> CALL_DESCRIPTOR;
 
-    private static final BuiltInSlot.Descriptor<BaseFunction> NAME_DESCRIPTOR =
-            new BuiltInSlot.Descriptor<>(
-                    "name", BaseFunction::nameGetter, BaseFunction::nameSetter);
-    private static final BuiltInSlot.Descriptor<BaseFunction> LENGTH_DESCRIPTOR =
-            new BuiltInSlot.Descriptor<>("length", BaseFunction::lengthGetter);
-    private static final BuiltInSlot.Descriptor<BaseFunction> ARITY_DESCRIPTOR =
-            new BuiltInSlot.Descriptor<>("arity", BaseFunction::arityGetter);
-    private static final BuiltInSlot.Descriptor<BaseFunction> ARGUMENTS_DESCRIPTOR =
-            new BuiltInSlot.Descriptor<>(
-                    "arguments", BaseFunction::argumentsGetter, BaseFunction::argumentsSetter);
-    private static final SlotMapDescriptor<BaseFunction> BASIC_MAP =
-            new SlotMapDescriptor.Builder<BaseFunction>()
-                    .withSlot(LENGTH_DESCRIPTOR, DONTENUM | READONLY)
-                    .withSlot(NAME_DESCRIPTOR, DONTENUM | READONLY)
-                    .build();
+    private static final BuiltInSlot.Descriptor<BaseFunction> NAME_DESCRIPTOR = new BuiltInSlot.Descriptor<>(
+            "name", BaseFunction::nameGetter, BaseFunction::nameSetter);
+    private static final BuiltInSlot.Descriptor<BaseFunction> LENGTH_DESCRIPTOR = new BuiltInSlot.Descriptor<>("length",
+            BaseFunction::lengthGetter);
+    private static final BuiltInSlot.Descriptor<BaseFunction> ARITY_DESCRIPTOR = new BuiltInSlot.Descriptor<>("arity",
+            BaseFunction::arityGetter);
+    private static final BuiltInSlot.Descriptor<BaseFunction> ARGUMENTS_DESCRIPTOR = new BuiltInSlot.Descriptor<>(
+            "arguments", BaseFunction::argumentsGetter, BaseFunction::argumentsSetter);
+    private static final SlotMapDescriptor<BaseFunction> BASIC_MAP = new SlotMapDescriptor.Builder<BaseFunction>()
+            .withSlot(LENGTH_DESCRIPTOR, DONTENUM | READONLY)
+            .withSlot(NAME_DESCRIPTOR, DONTENUM | READONLY)
+            .build();
 
-    private static final SlotMapDescriptor<BaseFunction> ARITY_MAP =
-            SlotMapDescriptor.Builder.extending(BASIC_MAP)
-                    .withSlot(ARITY_DESCRIPTOR, PERMANENT | DONTENUM | READONLY)
-                    .build();
+    private static final SlotMapDescriptor<BaseFunction> ARITY_MAP = SlotMapDescriptor.Builder.extending(BASIC_MAP)
+            .withSlot(ARITY_DESCRIPTOR, PERMANENT | DONTENUM | READONLY)
+            .build();
 
-    private static final SlotMapDescriptor<BaseFunction> ARGUMENTS_MAP =
-            SlotMapDescriptor.Builder.extending(ARITY_MAP)
-                    .withSlot(ARGUMENTS_DESCRIPTOR, PERMANENT | DONTENUM)
-                    .build();
+    private static final SlotMapDescriptor<BaseFunction> ARGUMENTS_MAP = SlotMapDescriptor.Builder.extending(ARITY_MAP)
+            .withSlot(ARGUMENTS_DESCRIPTOR, PERMANENT | DONTENUM)
+            .build();
 
-    private static final BuiltInSlot.Descriptor<BaseFunction> PROTOTYPE_DESCRIPTOR =
-            new BuiltInSlot.Descriptor<>(
-                    PROTOTYPE_PROPERTY_NAME,
-                    BaseFunction::prototypeGetter,
-                    BaseFunction::prototypeSetter,
-                    BaseFunction::prototypeAttrSetter,
-                    BaseFunction::prototypeDescSetter);
+    private static final BuiltInSlot.Descriptor<BaseFunction> PROTOTYPE_DESCRIPTOR = new BuiltInSlot.Descriptor<>(
+            PROTOTYPE_PROPERTY_NAME,
+            BaseFunction::prototypeGetter,
+            BaseFunction::prototypeSetter,
+            BaseFunction::prototypeAttrSetter,
+            BaseFunction::prototypeDescSetter);
 
     static {
-        var builder =
-                new ClassDescriptor.Builder(
-                                FUNCTION_CLASS,
-                                1,
-                                BaseFunction::js_constructor,
-                                BaseFunction::js_constructor)
-                        .withMethod(PROTO, "call", 1, BaseFunction::js_call)
-                        .withMethod(PROTO, "apply", 2, BaseFunction::js_apply)
-                        .withMethod(PROTO, "bind", 1, BaseFunction::js_bind)
-                        .withMethod(PROTO, "toSource", 1, BaseFunction::js_toSource)
-                        .withMethod(PROTO, "toString", 0, BaseFunction::js_toString)
-                        .withMethod(
-                                PROTO,
-                                SymbolKey.HAS_INSTANCE,
-                                1,
-                                BaseFunction::js_hasInstance,
-                                DONTENUM | READONLY | PERMANENT,
-                                DONTENUM | READONLY);
+        var builder = new ClassDescriptor.Builder(
+                FUNCTION_CLASS,
+                1,
+                BaseFunction::js_constructor,
+                BaseFunction::js_constructor)
+                .withMethod(PROTO, "call", 1, BaseFunction::js_call)
+                .withMethod(PROTO, "apply", 2, BaseFunction::js_apply)
+                .withMethod(PROTO, "bind", 1, BaseFunction::js_bind)
+                .withMethod(PROTO, "toSource", 1, BaseFunction::js_toSource)
+                .withMethod(PROTO, "toString", 0, BaseFunction::js_toString)
+                .withMethod(
+                        PROTO,
+                        SymbolKey.HAS_INSTANCE,
+                        1,
+                        BaseFunction::js_hasInstance,
+                        DONTENUM | READONLY | PERMANENT,
+                        DONTENUM | READONLY);
 
         DESCRIPTOR = builder.build();
-        ES6_DESCRIPTOR =
-                builder.withProp(
-                                PROTO,
-                                "arguments",
-                                BaseFunction::js_protoArgumentsGetter,
-                                BaseFunction::js_protoArgumentsSetter,
-                                DONTENUM | READONLY)
-                        .build();
+        ES6_DESCRIPTOR = builder.withProp(
+                PROTO,
+                "arguments",
+                BaseFunction::js_protoArgumentsGetter,
+                BaseFunction::js_protoArgumentsSetter,
+                DONTENUM | READONLY)
+                .build();
 
         APPLY_DESCRIPTOR = DESCRIPTOR.findProtoDesc("apply");
         CALL_DESCRIPTOR = DESCRIPTOR.findProtoDesc("call");
 
-        GENERATOR_DESCRIPTOR =
-                new ClassDescriptor.Builder(
-                                GENERATOR_FUNCTION_CLASS,
-                                "GeneratorFunction",
-                                1,
-                                BaseFunction::js_gen_constructor,
-                                BaseFunction::js_gen_constructor)
-                        .withProp(
-                                PROTO,
-                                SymbolKey.TO_STRING_TAG,
-                                value("GeneratorFunction", READONLY | DONTENUM))
-                        .build();
+        GENERATOR_DESCRIPTOR = new ClassDescriptor.Builder(
+                GENERATOR_FUNCTION_CLASS,
+                "GeneratorFunction",
+                1,
+                BaseFunction::js_gen_constructor,
+                BaseFunction::js_gen_constructor)
+                .withProp(
+                        PROTO,
+                        SymbolKey.TO_STRING_TAG,
+                        value("GeneratorFunction", READONLY | DONTENUM))
+                .build();
     }
 
     static JSFunction init(Context cx, VarScope scope, boolean sealed) {
-        var proto =
-                new LambdaFunction(
-                        scope, "", 0, null, (lcx, lscope, lthisObj, largs) -> Undefined.instance);
+        var proto = new LambdaFunction(
+                scope, "", 0, null, (lcx, lscope, lthisObj, largs) -> Undefined.instance);
 
         if (cx.getLanguageVersion() < Context.VERSION_ES6) {
             return DESCRIPTOR.buildConstructor(cx, scope, proto, sealed);
@@ -154,13 +147,10 @@ public class BaseFunction extends ScriptableObject implements Function {
                     VarScope top = ScriptableObject.getTopLevelScope(scope);
 
                     var function = (Scriptable) ScriptableObject.getProperty(scope, FUNCTION_CLASS);
-                    var functionProto =
-                            (Scriptable)
-                                    ScriptableObject.getProperty(function, PROTOTYPE_PROPERTY_NAME);
+                    var functionProto = (Scriptable) ScriptableObject.getProperty(function, PROTOTYPE_PROPERTY_NAME);
                     proto.setPrototype(functionProto);
 
-                    var generatorProto =
-                            ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
+                    var generatorProto = ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
 
                     proto.setAttributes("constructor", DONTENUM | READONLY);
                     proto.defineProperty("prototype", generatorProto, READONLY | DONTENUM);
@@ -288,8 +278,7 @@ public class BaseFunction extends ScriptableObject implements Function {
             return ScriptableObject.defineOrdinaryProperty(
                     (o, i, k, e, m, s) -> {
                         if (i.value != NOT_FOUND) {
-                            builtIn.prototypeProperty =
-                                    i.value == null ? UniqueTag.NULL_VALUE : i.value;
+                            builtIn.prototypeProperty = i.value == null ? UniqueTag.NULL_VALUE : i.value;
                         }
                         return s;
                     },
@@ -339,7 +328,8 @@ public class BaseFunction extends ScriptableObject implements Function {
      * Gets the value returned by calling the typeof operator on this object.
      *
      * @see ScriptableObject#getTypeOf()
-     * @return "function" or "undefined" if {@link #avoidObjectDetection()} returns {@code true}
+     * @return "function" or "undefined" if {@link #avoidObjectDetection()} returns
+     *         {@code true}
      */
     @Override
     public String getTypeOf() {
@@ -349,13 +339,15 @@ public class BaseFunction extends ScriptableObject implements Function {
     /**
      * Implements the instanceof operator for JavaScript Function objects.
      *
-     * <p><code>
+     * <p>
+     * <code>
      * foo = new Foo();<br>
      * foo instanceof Foo;  // true<br>
      * </code>
      *
      * @param instance The value that appeared on the LHS of the instanceof operator
-     * @return true if the "prototype" property of "this" appears in value's prototype chain
+     * @return true if the "prototype" property of "this" appears in value's
+     *         prototype chain
      */
     @Override
     public boolean hasInstance(Scriptable instance) {
@@ -367,7 +359,7 @@ public class BaseFunction extends ScriptableObject implements Function {
         if (hasInstanceMethod instanceof Callable) {
             return ScriptRuntime.toBoolean(
                     ((Callable) hasInstanceMethod)
-                            .call(cx, getParentScope(), this, new Object[] {instance}));
+                            .call(cx, getParentScope(), this, new Object[] { instance }));
         }
 
         Object protoProp = ScriptableObject.getProperty(this, PROTOTYPE_PROPERTY_NAME);
@@ -415,9 +407,8 @@ public class BaseFunction extends ScriptableObject implements Function {
         }
         Object protoProp = null;
         if (thisObj instanceof BoundFunction)
-            protoProp =
-                    ((JSFunction) ((BoundFunction) thisObj).getTargetFunction())
-                            .getPrototypeProperty();
+            protoProp = ((JSFunction) ((BoundFunction) thisObj).getTargetFunction())
+                    .getPrototypeProperty();
         else {
             protoProp = ScriptableObject.getProperty((Scriptable) thisObj, PROTOTYPE_PROPERTY_NAME);
         }
@@ -516,7 +507,10 @@ public class BaseFunction extends ScriptableObject implements Function {
         return ensureType(thisObj, BaseFunction.class, functionName);
     }
 
-    /** Make value as DontEnum, DontDelete, ReadOnly prototype property of this Function object */
+    /**
+     * Make value as DontEnum, DontDelete, ReadOnly prototype property of this
+     * Function object
+     */
     public void setImmunePrototypeProperty(Object value) {
         if ((prototypePropertyAttributes & READONLY) != 0) {
             throw new IllegalStateException();
@@ -545,7 +539,7 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 
@@ -589,10 +583,14 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Creates new script object. The default implementation of {@link #construct} uses this method
-     * to to get the value for {@code thisObj} argument when invoking {@link #call}. The method is
-     * allowed to return {@code null} to indicate that {@link #call} will create a new object
-     * itself. In this case {@link #construct} will set scope and prototype on the result {@link
+     * Creates new script object. The default implementation of {@link #construct}
+     * uses this method
+     * to to get the value for {@code thisObj} argument when invoking {@link #call}.
+     * The method is
+     * allowed to return {@code null} to indicate that {@link #call} will create a
+     * new object
+     * itself. In this case {@link #construct} will set scope and prototype on the
+     * result {@link
      * #call} unless they are already set.
      */
     public Scriptable createObject(Context cx, VarScope scope) {
@@ -622,10 +620,11 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Decompile the source information associated with this js function/script back into a string.
+     * Decompile the source information associated with this js function/script back
+     * into a string.
      *
      * @param indent How much to indent the decompiled result.
-     * @param flags Flags specifying format of decompilation output.
+     * @param flags  Flags specifying format of decompilation output.
      */
     String decompile(int indent, EnumSet<DecompilerFlag> flags) {
         StringBuilder sb = new StringBuilder();
@@ -663,7 +662,8 @@ public class BaseFunction extends ScriptableObject implements Function {
     }
 
     /**
-     * Sets the attributes of the "name", "length", and "arity" properties, which differ for many
+     * Sets the attributes of the "name", "length", and "arity" properties, which
+     * differ for many
      * native objects.
      */
     public void setStandardPropertyAttributes(int attributes) {
@@ -675,15 +675,15 @@ public class BaseFunction extends ScriptableObject implements Function {
     public void setPrototypePropertyAttributes(int attributes) {
         prototypePropertyAttributes = attributes;
         getMap().compute(
-                        this,
-                        PROTOTYPE_PROPERTY_NAME,
-                        0,
-                        (k, i, s, m, o) -> {
-                            if (s != null) {
-                                s.setAttributes(attributes);
-                            }
-                            return s;
-                        });
+                this,
+                PROTOTYPE_PROPERTY_NAME,
+                0,
+                (k, i, s, m, o) -> {
+                    if (s != null) {
+                        s.setAttributes(attributes);
+                    }
+                    return s;
+                });
     }
 
     protected boolean hasPrototypeProperty() {
@@ -725,8 +725,7 @@ public class BaseFunction extends ScriptableObject implements Function {
             // For generator functions, the .prototype property's [[Prototype]]
             // should be %GeneratorPrototype%, not Object.prototype
             VarScope top = ScriptableObject.getTopLevelScope(scope);
-            Object generatorProto =
-                    ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
+            Object generatorProto = ScriptableObject.getTopScopeValue(top, ES6Generator.GENERATOR_TAG);
             if (generatorProto instanceof Scriptable) {
                 proto = (Scriptable) generatorProto;
             } else {
@@ -772,7 +771,8 @@ public class BaseFunction extends ScriptableObject implements Function {
         return arguments;
     }
 
-    void setArguments(Object caller) {}
+    void setArguments(Object caller) {
+    }
 
     private static Scriptable jsConstructor(
             Context cx,
@@ -827,9 +827,7 @@ public class BaseFunction extends ScriptableObject implements Function {
 
         // Compile with explicit interpreter instance to force interpreter
         // mode.
-        var res =
-                (JSFunction)
-                        cx.compileFunction(global, source, evaluator, reporter, sourceURI, 1, null);
+        var res = (JSFunction) cx.compileFunction(global, source, evaluator, reporter, sourceURI, 1, null);
 
         if (res.getDescriptor().isES6Generator()) {
             ScriptRuntime.setBuiltinProtoAndParent(
@@ -868,7 +866,7 @@ public class BaseFunction extends ScriptableObject implements Function {
     private Scriptable homeObject = null;
 
     // For function object instances, attributes are
-    //  {configurable:false, enumerable:false};
+    // {configurable:false, enumerable:false};
     // see ECMA 15.3.5.2
     private int prototypePropertyAttributes = PERMANENT | DONTENUM;
 }

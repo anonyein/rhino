@@ -840,7 +840,7 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 

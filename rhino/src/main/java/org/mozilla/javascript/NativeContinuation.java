@@ -10,7 +10,8 @@ import java.io.Serial;
 import java.util.Objects;
 
 public final class NativeContinuation extends ScriptableObject implements Function {
-    @Serial private static final long serialVersionUID = 1794167133757605367L;
+    @Serial
+    private static final long serialVersionUID = 1794167133757605367L;
 
     private static final String CLASS_NAME = "Continuation";
 
@@ -18,13 +19,12 @@ public final class NativeContinuation extends ScriptableObject implements Functi
     private static final JSDescriptor<JSFunction> CTOR_DESCRIPTOR;
 
     static {
-        DESCRIPTOR =
-                new ClassDescriptor.Builder(
-                                CLASS_NAME,
-                                0,
-                                NativeContinuation::js_constructor,
-                                NativeContinuation::js_constructor)
-                        .build();
+        DESCRIPTOR = new ClassDescriptor.Builder(
+                CLASS_NAME,
+                0,
+                NativeContinuation::js_constructor,
+                NativeContinuation::js_constructor)
+                .build();
         CTOR_DESCRIPTOR = DESCRIPTOR.ctorDesc();
     }
 
@@ -63,7 +63,7 @@ public final class NativeContinuation extends ScriptableObject implements Functi
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object method, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
         return null;
     }
 
@@ -76,7 +76,8 @@ public final class NativeContinuation extends ScriptableObject implements Functi
      *
      * @param c1 one continuation
      * @param c2 another continuation
-     * @return true if the implementations of both continuations are equal, or they are both null.
+     * @return true if the implementations of both continuations are equal, or they
+     *         are both null.
      * @throws NullPointerException if either continuation is null
      */
     public static boolean equalImplementations(NativeContinuation c1, NativeContinuation c2) {
