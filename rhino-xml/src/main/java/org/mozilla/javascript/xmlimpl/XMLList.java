@@ -768,7 +768,7 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     private Object applyOrCall(
-            boolean isApply, Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+            boolean isApply, Context cx, VarScope scope, Object thisObj, Object[] args) {
         String methodName = isApply ? "apply" : "call";
         if (!(thisObj instanceof XMLList) || ((XMLList) thisObj).targetProperty == null)
             throw ScriptRuntime.typeErrorById("msg.isnt.function", methodName);
@@ -800,7 +800,7 @@ class XMLList extends XMLObjectImpl implements Function {
     }
 
     @Override
-    public Object call(Context cx, VarScope scope, Scriptable thisObj, Object[] args) {
+    public Object call(Context cx, VarScope scope, Object thisObj, Object[] args) {
         // This XMLList is being called as a Function.
         // Let's find the real Function object.
         if (targetProperty == null)
@@ -816,7 +816,7 @@ class XMLList extends XMLObjectImpl implements Function {
             throw ScriptRuntime.typeErrorById("msg.incompat.call", methodName);
         }
         Object func = null;
-        Scriptable sobj = thisObj;
+        Scriptable sobj = ScriptRuntime.toObject(getDeclarationScope(), thisObj);
 
         while (sobj instanceof XMLObject) {
             XMLObject xmlObject = (XMLObject) sobj;
@@ -844,7 +844,7 @@ class XMLList extends XMLObjectImpl implements Function {
         return null;
     }
 
-    public Scriptable construct(Context cx, VarScope scope, Object[] args) {
+    public Scriptable construct(Context cx, Object nt, VarScope scope, Object[] args) {
         throw ScriptRuntime.typeErrorById("msg.not.ctor", "XMLList");
     }
 }
