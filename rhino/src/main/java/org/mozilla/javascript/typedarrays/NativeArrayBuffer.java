@@ -98,7 +98,8 @@ public class NativeArrayBuffer extends ScriptableObject {
 
     /** Create a buffer of the specified bytes. */
     public NativeArrayBuffer(byte[] buffer) {
-        this.buffer = buffer;
+        byteOrder = defaultByteOrder();
+        this.buffer = ByteBuffer.wrap(buffer).order(byteOrder);
     }
 
     /** Create a buffer of the specified length in bytes. */
