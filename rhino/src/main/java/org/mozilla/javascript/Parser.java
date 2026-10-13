@@ -4409,6 +4409,7 @@ public class Parser {
                 if (afterComma != -1) warnTrailingComma(pos, elems, afterComma);
                 break commaLoop;
             }
+            int propStart = ts.tokenBeg;
             AstNode pname = objliteralProperty();
             if (pname == null) {
                 reportError("msg.bad.prop");
@@ -4487,6 +4488,7 @@ public class Parser {
                                         entryKind,
                                         pname instanceof GeneratorMethodDefinition,
                                         true);
+                        ((FunctionNode) objectProp.getValue()).setRawSourceStart(propStart);
                         pname.setJsDocNode(jsdocNode);
                         elems.add(objectProp);
                     }
