@@ -1703,12 +1703,12 @@ public class Parser {
 
         SwitchStatement pn = new SwitchStatement(pos);
         pn.setLineColumnNumber(lineNumber(), columnNumber());
+        if (mustMatchToken(Token.LP, "msg.no.paren.switch", true)) pn.setLp(ts.tokenBeg - pos);
+
+        AstNode discriminant = expr(false);
+        pn.setExpression(discriminant);
         pushScope(pn);
         try {
-            if (mustMatchToken(Token.LP, "msg.no.paren.switch", true)) pn.setLp(ts.tokenBeg - pos);
-
-            AstNode discriminant = expr(false);
-            pn.setExpression(discriminant);
             enterSwitch(pn);
 
             try {
@@ -1756,23 +1756,33 @@ public class Parser {
                     caseNode.setLength(ts.tokenEnd - pos); // include colon
                     caseNode.setLineColumnNumber(caseLineno, caseColumn);
 
-                    while ((tt = peekToken()) != Token.RC
-                            && tt != Token.CASE
-                            && tt != Token.DEFAULT
-                            && tt != Token.EOF) {
-                        if (tt == Token.COMMENT) {
-                            Comment inlineComment = scannedComments.get(scannedComments.size() - 1);
-                            if (caseNode.getInlineComment() == null
-                                    && inlineComment.getLineno() == caseNode.getLineno()) {
-                                caseNode.setInlineComment(inlineComment);
-                            } else {
-                                caseNode.addStatement(inlineComment);
+                    boolean savedInSingleStatementContext = inSingleStatementContext;
+                    boolean savedInSingleStatementDeclContext = inSingleStatementDeclContext;
+                    inSingleStatementContext = false;
+                    inSingleStatementDeclContext = false;
+                    try {
+                        while ((tt = peekToken()) != Token.RC
+                                && tt != Token.CASE
+                                && tt != Token.DEFAULT
+                                && tt != Token.EOF) {
+                            if (tt == Token.COMMENT) {
+                                Comment inlineComment =
+                                        scannedComments.get(scannedComments.size() - 1);
+                                if (caseNode.getInlineComment() == null
+                                        && inlineComment.getLineno() == caseNode.getLineno()) {
+                                    caseNode.setInlineComment(inlineComment);
+                                } else {
+                                    caseNode.addStatement(inlineComment);
+                                }
+                                consumeToken();
+                                continue;
                             }
-                            consumeToken();
-                            continue;
+                            AstNode nextStmt = statement();
+                            caseNode.addStatement(nextStmt); // updates length
                         }
-                        AstNode nextStmt = statement();
-                        caseNode.addStatement(nextStmt); // updates length
+                    } finally {
+                        inSingleStatementContext = savedInSingleStatementContext;
+                        inSingleStatementDeclContext = savedInSingleStatementDeclContext;
                     }
                     pn.addCase(caseNode);
                 }
@@ -2962,7 +2972,10 @@ public class Parser {
     }
 
     private boolean isVarRedeclaration(Symbol.Type newDeclType, Symbol symbol) {
-        return (symbol.getDeclType() == Symbol.Type.VAR || symbol.getDeclType() == Symbol.Type.LP)
+        return switch (symbol.getDeclType()) {
+                    case VAR, FUNCTION_VAR, LP -> true;
+                    default -> false;
+                }
                 && newDeclType == Symbol.Type.VAR;
     }
 
