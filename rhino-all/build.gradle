@@ -14,7 +14,7 @@ dependencies {
 }
 
 shadowJar {
-    // Ensure that the "jar" from this step is the shadowed one that we want to 
+    // Ensure that the "jar" from this step is the shadowed one that we want to
     // publish in Maven.
     archiveClassifier.set('')
     // Merge service files, but fail on other duplicates.
@@ -26,6 +26,22 @@ shadowJar {
     manifest {
         attributes 'Main-Class': 'org.mozilla.javascript.tools.shell.Main'
     }
+}
+
+// Configure the sibling modules before reading their source sets below.
+evaluationDependsOn ':rhino'
+evaluationDependsOn ':rhino-tools'
+evaluationDependsOn ':rhino-xml'
+
+sourceJar {
+    // The all-in-one JAR bundles the classes of the other published modules,
+    // so its sources JAR must contain their sources as well. Like the JAR
+    // itself, the sources JAR is not modular, so the module descriptors of
+    // the bundled modules are not included.
+    from project(':rhino').sourceSets.main.allJava
+    from project(':rhino-tools').sourceSets.main.allJava
+    from project(':rhino-xml').sourceSets.main.allJava
+    exclude 'module-info.java'
 }
 
 publishing {
