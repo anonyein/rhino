@@ -85,6 +85,12 @@ public class ComplianceTest {
 
         @Override
         public Object call(Context cx, VarScope scope, Object thisObj, Object[] args) {
+            return call(cx, scope, thisObj, null, args);
+        }
+
+        @Override
+        public Object call(
+                Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
             if (args.length > 1 && "fail".equals(args[1])) {
                 throw new AssertionFailedError(String.valueOf(args[0]));
             }

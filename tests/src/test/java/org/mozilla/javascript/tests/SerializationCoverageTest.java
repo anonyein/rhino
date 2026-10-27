@@ -81,7 +81,9 @@ public class SerializationCoverageTest {
             hook(type, "writeObject", ObjectOutputStream.class);
             hook(type, "readObjectNoData");
         }
-        assertEquals(51, roots);
+        // Four more than upstream: the four serializable inner classes of the fork-specific
+        // AccessorSlot.
+        assertEquals(55, roots);
         assertTrue(remainingValues.isEmpty());
         assertTrue(consStringFound);
     }

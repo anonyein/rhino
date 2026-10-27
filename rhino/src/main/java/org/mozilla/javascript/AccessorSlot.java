@@ -1,5 +1,9 @@
 package org.mozilla.javascript;
 
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
 import org.mozilla.javascript.ScriptableObject.DescriptorInfo;
@@ -154,7 +158,7 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
     }
 
     /** This is a Getter that delegates to a Java function via a MemberBox. */
-    static final class MemberBoxGetter implements Getter{
+    static final class MemberBoxGetter implements Getter {
         private static final long serialVersionUID = -6985513145629269853L;
 
         final MemberBox member;
@@ -179,6 +183,24 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
         @Override
         public boolean isSameGetterFunction(Object function) {
             return member.isSameGetterFunction(function);
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 
@@ -212,6 +234,24 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
         public boolean isSameGetterFunction(Object function) {
             return ScriptRuntime.shallowEq(
                     target instanceof Function ? (Function) target : Undefined.instance, function);
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 
@@ -261,6 +301,24 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
         public boolean isSameSetterFunction(Object function) {
             return member.isSameSetterFunction(function);
         }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
+        }
     }
 
     /**
@@ -294,6 +352,24 @@ public class AccessorSlot extends StandardSlot<Scriptable> {
         public boolean isSameSetterFunction(Object function) {
             return ScriptRuntime.shallowEq(
                     target instanceof Function ? (Function) target : Undefined.instance, function);
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 }
