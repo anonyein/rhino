@@ -8,6 +8,10 @@ package org.mozilla.javascript;
 
 import static org.mozilla.javascript.ClassDescriptor.Destination.CTOR;
 
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,8 +24,7 @@ import java.util.Objects;
  * @author Ronald Brill
  */
 class NativeProxy extends ScriptableObject {
-    @Serial
-    private static final long serialVersionUID = 6676871870513494844L;
+    @Serial private static final long serialVersionUID = 6676871870513494844L;
 
     private static final String PROXY_TAG = "Proxy";
 
@@ -42,13 +45,14 @@ class NativeProxy extends ScriptableObject {
     private static final ClassDescriptor DESCRIPTOR;
 
     static {
-        DESCRIPTOR = new ClassDescriptor.Builder(
-                PROXY_TAG,
-                2,
-                ClassDescriptor.typeError(),
-                NativeProxy::js_constructor)
-                .withMethod(CTOR, "revocable", 2, NativeProxy::revocable)
-                .build();
+        DESCRIPTOR =
+                new ClassDescriptor.Builder(
+                                PROXY_TAG,
+                                2,
+                                ClassDescriptor.typeError(),
+                                NativeProxy::js_constructor)
+                        .withMethod(CTOR, "revocable", 2, NativeProxy::revocable)
+                        .build();
     }
 
     private ScriptableObject targetObj;
@@ -70,6 +74,24 @@ class NativeProxy extends ScriptableObject {
                 revocableProxy = null;
             }
             return Undefined.instance;
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 
@@ -95,8 +117,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * <a
-     * href=
+     * <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-hasproperty-p">10.5.7
      * [[HasProperty]] (P)</a>
      */
@@ -126,9 +147,11 @@ class NativeProxy extends ScriptableObject {
         Function trap = getTrap(TRAP_HAS);
         if (trap != null) {
 
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target, name }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, name}));
             if (!booleanTrapResult) {
-                DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), name);
+                DescriptorInfo targetDesc =
+                        target.getOwnPropertyDescriptor(Context.getContext(), name);
                 if (targetDesc != null) {
                     if (targetDesc.isConfigurable(false) || !target.isExtensible()) {
                         throw ScriptRuntime.typeError(
@@ -148,8 +171,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-hasproperty-p">10.5.7
      * [[HasProperty]] (P)</a>
      */
@@ -178,10 +200,12 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_HAS);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(trap, new Object[] { target, ScriptRuntime.toString(index) }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(trap, new Object[] {target, ScriptRuntime.toString(index)}));
             if (!booleanTrapResult) {
-                DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), index);
+                DescriptorInfo targetDesc =
+                        target.getOwnPropertyDescriptor(Context.getContext(), index);
                 if (targetDesc != null) {
                     if (targetDesc.isConfigurable(false) || !target.isExtensible()) {
                         throw ScriptRuntime.typeError(
@@ -200,8 +224,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-hasproperty-p">10.5.7
      * [[HasProperty]] (P)</a>
      */
@@ -211,9 +234,11 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_HAS);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target, key }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, key}));
             if (!booleanTrapResult) {
-                DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), key);
+                DescriptorInfo targetDesc =
+                        target.getOwnPropertyDescriptor(Context.getContext(), key);
                 if (targetDesc != null) {
                     if (targetDesc.isConfigurable(false) || !target.isExtensible()) {
                         throw ScriptRuntime.typeError(
@@ -233,8 +258,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-ownpropertykeys">10.5.11
      * [[OwnPropertyKeys]] ()</a>
      */
@@ -285,7 +309,7 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_OWN_KEYS);
         if (trap != null) {
-            Object res = callTrap(trap, new Object[] { target });
+            Object res = callTrap(trap, new Object[] {target});
             if (!(res instanceof Scriptable)) {
                 throw ScriptRuntime.typeError("ownKeys trap must be an object");
             }
@@ -295,13 +319,15 @@ class NativeProxy extends ScriptableObject {
 
             Context cx = Context.getContext();
 
-            List<Object> trapResult = AbstractEcmaObjectOperations.createListFromArrayLike(
-                    cx,
-                    (Scriptable) res,
-                    (o) -> o instanceof CharSequence
-                            || o instanceof NativeString
-                            || ScriptRuntime.isSymbol(o),
-                    "proxy [[OwnPropertyKeys]] must return an array with only string and symbol elements");
+            List<Object> trapResult =
+                    AbstractEcmaObjectOperations.createListFromArrayLike(
+                            cx,
+                            (Scriptable) res,
+                            (o) ->
+                                    o instanceof CharSequence
+                                            || o instanceof NativeString
+                                            || ScriptRuntime.isSymbol(o),
+                            "proxy [[OwnPropertyKeys]] must return an array with only string and symbol elements");
 
             boolean extensibleTarget = target.isExtensible();
             // don't use the provided values here we have to check all
@@ -362,8 +388,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver">10.5.8
      * [[Get]] (P, Receiver)</a>
      */
@@ -395,7 +420,7 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_GET);
         if (trap != null) {
-            Object trapResult = callTrap(trap, new Object[] { target, name, start });
+            Object trapResult = callTrap(trap, new Object[] {target, name, start});
 
             DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), name);
             if (targetDesc != null && targetDesc.isConfigurable(false)) {
@@ -422,8 +447,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver">10.5.8
      * [[Get]] (P, Receiver)</a>
      */
@@ -455,9 +479,11 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_GET);
         if (trap != null) {
-            Object trapResult = callTrap(trap, new Object[] { target, ScriptRuntime.toString(index), start });
+            Object trapResult =
+                    callTrap(trap, new Object[] {target, ScriptRuntime.toString(index), start});
 
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), index);
+            DescriptorInfo targetDesc =
+                    target.getOwnPropertyDescriptor(Context.getContext(), index);
             if (targetDesc != null
                     && !Undefined.isUndefined(targetDesc)
                     && targetDesc.isConfigurable(false)) {
@@ -484,8 +510,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver">10.5.8
      * [[Get]] (P, Receiver)</a>
      */
@@ -517,7 +542,7 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_GET);
         if (trap != null) {
-            Object trapResult = callTrap(trap, new Object[] { target, key, start });
+            Object trapResult = callTrap(trap, new Object[] {target, key, start});
 
             DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), key);
             if (targetDesc != null
@@ -547,8 +572,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * <a
-     * href=
+     * <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver">10.5.9
      * [[Set]] (P, V, Receiver)</a>
      */
@@ -581,8 +605,9 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_SET);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(trap, new Object[] { target, name, value, start }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(trap, new Object[] {target, name, value, start}));
             if (!booleanTrapResult) {
                 return; // false
             }
@@ -611,8 +636,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * <a
-     * href=
+     * <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver">10.5.9
      * [[Set]] (P, V, Receiver)</a>
      */
@@ -645,17 +669,19 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_SET);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(
-                            trap,
-                            new Object[] {
-                                    target, ScriptRuntime.toString(index), value, start
-                            }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(
+                                    trap,
+                                    new Object[] {
+                                        target, ScriptRuntime.toString(index), value, start
+                                    }));
             if (!booleanTrapResult) {
                 return; // false
             }
 
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), index);
+            DescriptorInfo targetDesc =
+                    target.getOwnPropertyDescriptor(Context.getContext(), index);
             if (targetDesc != null
                     && !Undefined.isUndefined(targetDesc)
                     && targetDesc.isConfigurable(false)) {
@@ -679,8 +705,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * <a
-     * href=
+     * <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver">10.5.9
      * [[Set]] (P, V, Receiver)</a>
      */
@@ -713,8 +738,9 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_SET);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(trap, new Object[] { target, key, value, start }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(trap, new Object[] {target, key, value, start}));
             if (!booleanTrapResult) {
                 return; // false
             }
@@ -744,8 +770,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-delete-p">10.5.10
      * [[Delete]] (P)</a>
      */
@@ -774,7 +799,8 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_DELETE_PROPERTY);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target, name }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, name}));
             if (!booleanTrapResult) {
                 return; // false
             }
@@ -795,8 +821,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-delete-p">10.5.10
      * [[Delete]] (P)</a>
      */
@@ -825,13 +850,15 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_DELETE_PROPERTY);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(trap, new Object[] { target, ScriptRuntime.toString(index) }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(trap, new Object[] {target, ScriptRuntime.toString(index)}));
             if (!booleanTrapResult) {
                 return; // false
             }
 
-            DescriptorInfo targetDesc = target.getOwnPropertyDescriptor(Context.getContext(), index);
+            DescriptorInfo targetDesc =
+                    target.getOwnPropertyDescriptor(Context.getContext(), index);
             if (targetDesc == null) {
                 return; // true
             }
@@ -847,8 +874,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-delete-p">10.5.10
      * [[Delete]] (P)</a>
      */
@@ -877,7 +903,8 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_DELETE_PROPERTY);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target, key }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, key}));
             if (!booleanTrapResult) {
                 return; // false
             }
@@ -899,8 +926,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p">10.5.5
      * [[GetOwnProperty]] (P)</a>
      */
@@ -943,7 +969,7 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_GET_OWN_PROPERTY_DESCRIPTOR);
         if (trap != null) {
-            Object trapResultObj = callTrap(trap, new Object[] { target, id });
+            Object trapResultObj = callTrap(trap, new Object[] {target, id});
             if (!Undefined.isUndefined(trapResultObj)
                     && !(trapResultObj instanceof Scriptable
                             && !ScriptRuntime.isSymbol(trapResultObj))) {
@@ -951,9 +977,10 @@ class NativeProxy extends ScriptableObject {
                         "getOwnPropertyDescriptor trap has to return undefined or an object");
             }
 
-            var targetDesc = ScriptRuntime.isSymbol(id)
-                    ? target.getOwnPropertyDescriptor(cx, id)
-                    : target.getOwnPropertyDescriptor(cx, ScriptRuntime.toString(id));
+            var targetDesc =
+                    ScriptRuntime.isSymbol(id)
+                            ? target.getOwnPropertyDescriptor(cx, id)
+                            : target.getOwnPropertyDescriptor(cx, ScriptRuntime.toString(id));
 
             if (Undefined.isUndefined(trapResultObj)) {
                 if (Undefined.isUndefined(targetDesc)) {
@@ -972,11 +999,12 @@ class NativeProxy extends ScriptableObject {
             Scriptable trapResult = (Scriptable) trapResultObj;
             if (trapResultObj != null) {
                 Object value = ScriptableObject.getProperty(trapResult, "value");
-                int attributes = applyDescriptorToAttributeBitset(
-                        DONTENUM | READONLY | PERMANENT,
-                        getProperty(trapResult, "enumerable"),
-                        getProperty(trapResult, "writable"),
-                        getProperty(trapResult, "configurable"));
+                int attributes =
+                        applyDescriptorToAttributeBitset(
+                                DONTENUM | READONLY | PERMANENT,
+                                getProperty(trapResult, "enumerable"),
+                                getProperty(trapResult, "writable"),
+                                getProperty(trapResult, "configurable"));
 
                 var desc = ScriptableObject.buildDataDescriptor(value, attributes);
                 return desc;
@@ -992,8 +1020,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-defineownproperty-p-desc">10.5.6
      * [[DefineOwnProperty]] (P, Desc)</a>
      */
@@ -1036,12 +1063,13 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_DEFINE_PROPERTY);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(
-                    callTrap(
-                            trap,
-                            new Object[] {
-                                    target, id, desc.toObject(trap.getDeclarationScope())
-                            }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(
+                            callTrap(
+                                    trap,
+                                    new Object[] {
+                                        target, id, desc.toObject(trap.getDeclarationScope())
+                                    }));
             if (!booleanTrapResult) {
                 return false;
             }
@@ -1084,8 +1112,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-isextensible">10.5.3
      * [[IsExtensible]] ()</a>
      */
@@ -1112,7 +1139,7 @@ class NativeProxy extends ScriptableObject {
             return target.isExtensible();
         }
 
-        boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target }));
+        boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target}));
         if (booleanTrapResult != target.isExtensible()) {
             throw ScriptRuntime.typeError(
                     "IsExtensible trap has to return the same value as the target");
@@ -1121,8 +1148,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-preventextensions">10.5.4
      * [[PreventExtensions]] ()</a>
      */
@@ -1148,7 +1174,7 @@ class NativeProxy extends ScriptableObject {
         if (trap == null) {
             return target.preventExtensions();
         }
-        boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target }));
+        boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target}));
         if (booleanTrapResult && target.isExtensible()) {
             throw ScriptRuntime.typeError("target is extensible but trap returned true");
         }
@@ -1162,8 +1188,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-getprototypeof">10.5.1
      * [[GetPrototypeOf]] ()</a>
      */
@@ -1191,7 +1216,7 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_GET_PROTOTYPE_OF);
         if (trap != null) {
-            Object handlerProto = callTrap(trap, new Object[] { target });
+            Object handlerProto = callTrap(trap, new Object[] {target});
 
             Scriptable handlerProtoScriptable = Undefined.SCRIPTABLE_UNDEFINED;
             if (handlerProtoScriptable == null
@@ -1221,8 +1246,7 @@ class NativeProxy extends ScriptableObject {
     }
 
     /**
-     * see <a
-     * href=
+     * see <a href=
      * "https://262.ecma-international.org/12.0/#sec-proxy-object-internal-methods-and-internal-slots-setprototypeof-v">10.5.2
      * [[SetPrototypeOf]] (V)</a>
      */
@@ -1250,7 +1274,8 @@ class NativeProxy extends ScriptableObject {
 
         Function trap = getTrap(TRAP_SET_PROTOTYPE_OF);
         if (trap != null) {
-            boolean booleanTrapResult = ScriptRuntime.toBoolean(callTrap(trap, new Object[] { target, prototype }));
+            boolean booleanTrapResult =
+                    ScriptRuntime.toBoolean(callTrap(trap, new Object[] {target, prototype}));
             if (!booleanTrapResult) {
                 return; // false
             }
@@ -1364,7 +1389,7 @@ class NativeProxy extends ScriptableObject {
             Function trap = getTrap(TRAP_CONSTRUCT);
             if (trap != null) {
                 Scriptable argumentsList = cx.newArray(scope, args);
-                Object result = callTrap(trap, new Object[] { target, argumentsList, nt });
+                Object result = callTrap(trap, new Object[] {target, argumentsList, nt});
                 if (!(result instanceof Scriptable) || ScriptRuntime.isSymbol(result)) {
                     throw ScriptRuntime.typeError("Constructor trap has to return a scriptable.");
                 }
@@ -1398,15 +1423,16 @@ class NativeProxy extends ScriptableObject {
 
             Function trap = getTrap(TRAP_APPLY);
             if (trap != null) {
-                return callTrap(trap, new Object[] { target, thisObj, argumentsList });
+                return callTrap(trap, new Object[] {target, thisObj, argumentsList});
             }
 
             return ScriptRuntime.applyOrCall(
-                    true, cx, scope, target, new Object[] { thisObj, argumentsList });
+                    true, cx, scope, target, new Object[] {thisObj, argumentsList});
         }
 
         @Override
-        public Object call(Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
+        public Object call(
+                Context cx, VarScope scope, Object thisObj, Object method, Object[] args) {
             return null;
         }
 

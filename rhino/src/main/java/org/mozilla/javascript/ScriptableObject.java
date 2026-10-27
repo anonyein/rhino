@@ -9,6 +9,7 @@
 package org.mozilla.javascript;
 
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serial;
@@ -2923,13 +2924,12 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
             // HtmlUnit - HACK
             // if ((attr & UNINITIALIZED_CONST) != 0) {
             // HtmlUnit - HACK
-                slot.value = value;
-                // clear the bit on const initialization
-                if (constFlag != UNINITIALIZED_CONST)
-                    slot.setAttributes(attr & ~UNINITIALIZED_CONST);
-             // HtmlUnit - HACK
-             // }
-             // HtmlUnit - HACK
+            slot.value = value;
+            // clear the bit on const initialization
+            if (constFlag != UNINITIALIZED_CONST) slot.setAttributes(attr & ~UNINITIALIZED_CONST);
+            // HtmlUnit - HACK
+            // }
+            // HtmlUnit - HACK
             return true;
         }
         return slot.setValue(value, this, start);
@@ -3036,14 +3036,21 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
 
     @Serial
     private void writeObject(ObjectOutputStream out) throws IOException {
+        Context.checkSerializationEnabled();
         out.defaultWriteObject();
         writeMaps(out);
     }
 
     @Serial
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        Context.checkDeserializationEnabled();
         in.defaultReadObject();
         readMaps(in);
+    }
+
+    @Serial
+    private void readObjectNoData() throws InvalidObjectException {
+        throw new InvalidObjectException("Missing serialized ScriptableObject data");
     }
 
     protected DescriptorInfo getOwnPropertyDescriptor(Context cx, Object id) {
@@ -3116,6 +3123,24 @@ public abstract class ScriptableObject extends SlotMapOwner<Scriptable>
                 return 1;
             }
             return 0;
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 

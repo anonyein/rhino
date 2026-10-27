@@ -12,6 +12,11 @@ import static org.mozilla.javascript.ScriptableObject.READONLY;
 import static org.mozilla.javascript.Symbol.Kind.REGULAR;
 import static org.mozilla.javascript.UniqueTag.NOT_FOUND;
 
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -2699,6 +2704,24 @@ public class ScriptRuntime {
         boolean enumNumbers;
 
         Scriptable iterator;
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
+        }
     }
 
     public static Scriptable toIterator(Context cx, Scriptable obj, boolean keyOnly) {
@@ -3506,9 +3529,8 @@ public class ScriptRuntime {
     }
 
     /**
-     * HtmlUnit hack for indirect eval() calls
-     * This indicates whether last call of "eval" was at the top scope (i.e. "eval()") or not (i.e.
-     * "scope.eval()"), as each one has different behavior.
+     * HtmlUnit hack for indirect eval() calls This indicates whether last call of "eval" was at the
+     * top scope (i.e. "eval()") or not (i.e. "scope.eval()"), as each one has different behavior.
      *
      * <p>Ideally, we should have "eval" at top scope and we use Context.FEATURE_DYNAMIC_SCOPE, but
      * it will complex the code.
@@ -6402,6 +6424,24 @@ public class ScriptRuntime {
          */
         public Object call(Context cx, VarScope scope, Object[] args) {
             return getCallable().call(cx, scope, thisObj, args);
+        }
+
+        @Serial
+        private void readObject(ObjectInputStream stream)
+                throws IOException, ClassNotFoundException {
+            Context.checkDeserializationEnabled();
+            stream.defaultReadObject();
+        }
+
+        @Serial
+        private void writeObject(ObjectOutputStream stream) throws IOException {
+            Context.checkSerializationEnabled();
+            stream.defaultWriteObject();
+        }
+
+        @Serial
+        private void readObjectNoData() throws InvalidObjectException {
+            throw new InvalidObjectException("Missing serialized Rhino object data");
         }
     }
 
