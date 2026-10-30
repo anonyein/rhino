@@ -91,8 +91,7 @@ public class NativeArrayBuffer extends ScriptableObject {
                         .withProp(PROTO, "detached", NativeArrayBuffer::js_detached, null, DONTENUM)
                         .withProp(
                                 PROTO, "resizable", NativeArrayBuffer::js_resizable, null, DONTENUM)
-                        .withProp(
-                                PROTO, "bytes", NativeArrayBuffer::js_bytes, null, DONTENUM)
+                        .withProp(PROTO, "bytes", NativeArrayBuffer::js_bytes, null, DONTENUM)
                         .withProp(
                                 PROTO,
                                 "maxByteLength",
@@ -177,6 +176,7 @@ public class NativeArrayBuffer extends ScriptableObject {
     /** Create a buffer of the specified bytes. */
     public NativeArrayBuffer(byte[] buffer) {
         byteOrder = defaultByteOrder();
+        this.shared = false;
         this.buffer = ByteBuffer.wrap(buffer).order(byteOrder);
     }
 
@@ -529,7 +529,7 @@ public class NativeArrayBuffer extends ScriptableObject {
         // A buffer is resizable if maxByteLength was specified in constructor
         return self.getBuffer();
     }
-    
+
     private static Object js_sharedGrowable(Scriptable thisObj) {
         NativeArrayBuffer self = getSharedSelf(thisObj);
         // A buffer is resizable if maxByteLength was specified in constructor

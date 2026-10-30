@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.TopLevel;
 import org.mozilla.javascript.Undefined;
+import org.mozilla.javascript.typedarrays.NativeArrayBuffer;
 
 public class NativeArrayBufferTest {
 
@@ -25,5 +26,16 @@ public class NativeArrayBufferTest {
             Object result = cx.evaluateString(global, "(new ArrayBuffer(5)).isView", "", 1, null);
             Assertions.assertEquals(Undefined.instance, result);
         }
+    }
+
+    @Test
+    public void bytesConstructorCreatesNonSharedBuffer() {
+        byte[] bytes = {1, 2, 3};
+        NativeArrayBuffer buffer = new NativeArrayBuffer(bytes);
+
+        Assertions.assertFalse(buffer.isShared());
+        Assertions.assertEquals(NativeArrayBuffer.ARRAY_CLASS_NAME, buffer.getClassName());
+        Assertions.assertEquals(3, buffer.getLength());
+        Assertions.assertArrayEquals(bytes, buffer.getBuffer());
     }
 }
