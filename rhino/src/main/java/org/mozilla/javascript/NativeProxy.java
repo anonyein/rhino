@@ -1358,9 +1358,11 @@ class NativeProxy extends ScriptableObject {
     }
 
     static class NativeProxyFunction extends NativeProxy implements Function {
+        private final boolean isConstructor;
 
         NativeProxyFunction(ScriptableObject target, Scriptable handler) {
             super(target, handler);
+            isConstructor = target instanceof Function && ((Function) target).isConstructor();
         }
 
         /**
@@ -1384,6 +1386,11 @@ class NativeProxy extends ScriptableObject {
              * 10. If Type(newObj) is not Object, throw a TypeError exception.
              * 11. Return newObj.
              */
+
+            if (!isConstructor) {
+                throw ScriptRuntime.typeErrorById("msg.not.ctor", ScriptRuntime.typeof(this));
+            }
+
             ScriptableObject target = getTargetThrowIfRevoked();
 
             Function trap = getTrap(TRAP_CONSTRUCT);
@@ -1448,11 +1455,7 @@ class NativeProxy extends ScriptableObject {
 
         @Override
         public boolean isConstructor() {
-            var f = getTargetThrowIfRevoked();
-            if (f instanceof Function) {
-                return ((Function) f).isConstructor();
-            }
-            return false;
+            return isConstructor;
         }
     }
 }
